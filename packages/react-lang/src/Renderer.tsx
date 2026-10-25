@@ -79,6 +79,13 @@ export interface RendererProps<L extends Library = Library> {
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
+  /**
+   * What the children were rendered from. A failed render is retried only when
+   * this changes: `children` is a new element on every parent render, so
+   * resetting on it retried a broken component on each ancestor re-render,
+   * without end when something above kept re-rendering.
+   */
+  resetKey: unknown;
   componentName?: string;
   onError?: (error: OpenUIError) => void;
 }
@@ -91,7 +98,8 @@ interface ErrorBoundaryState {
  * Error boundary that intentionally shows the last successfully rendered
  * children when a render error occurs. This "show last good state" behavior
  * prevents the UI from going blank during streaming or transient evaluation
- * errors, and auto-recovers when new valid children arrive.
+ * errors, and auto-recovers when the element it renders changes (new
+ * streamed props, store or query data).
  */
 class ElementErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   private lastValidChildren: React.ReactNode = null;
@@ -115,7 +123,7 @@ class ElementErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     if (!this.state.hasError) {
       this.lastValidChildren = this.props.children;
     }
-    if (this.state.hasError && prevProps.children !== this.props.children) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
       this.setState({ hasError: false });
     }
   }
@@ -174,7 +182,7 @@ function RenderNode({ node }: { node: ElementNode }) {
   if (!Comp) return null;
 
   return (
-    <ElementErrorBoundary componentName={node.typeName} onError={reportError}>
+    <ElementErrorBoundary resetKey={node} componentName={node.typeName} onError={reportError}>
       <RenderNodeInner el={node} Comp={Comp} />
     </ElementErrorBoundary>
   );
