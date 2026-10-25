@@ -9,6 +9,7 @@ import { SegmentFlow as SegmentFlowView } from "../components/Charts/SegmentFlow
 import { Sparkline } from "../components/Charts/Sparkline";
 import { SERIES_COLORS as SLOTS } from "../components/Charts/utils/constants";
 import { DeltaPill } from "../components/DeltaPill";
+import { PaceCell } from "../components/PaceCell";
 import {
   changeTone,
   formatChange,
@@ -17,14 +18,13 @@ import {
   formatPercent,
   formatPoints,
 } from "../core/format";
-import { passed } from "../core/schemas";
+import { ledgerLineSchema, passed } from "../core/schemas";
 import { Pending } from "../genui-lib/Pending";
-import {
-  ledgerLineSchema,
-  type inventoryItemSchema,
-  type marketingChannelSchema,
-  type productSchema,
-  type segmentSchema,
+import type {
+  inventoryItemSchema,
+  marketingChannelSchema,
+  productSchema,
+  segmentSchema,
 } from "./tools";
 
 type MarketingChannel = z.infer<typeof marketingChannelSchema>;
@@ -60,7 +60,7 @@ const KIND_COLOR = {
 export const MoneyBreakdown = defineComponent({
   name: "MoneyBreakdown",
   description:
-    "Waterfall of money from a starting amount to a result: each line adds (blue), subtracts (red), or subtotals (slate), drawn as floating bars on one scale with the amount and the change against the previous period. Pass get_sales_breakdown's or get_profit_bridge's lines directly.",
+    "Waterfall of money from a starting amount to a result: each line adds (blue), subtracts (red), or subtotals (slate), drawn as floating bars on one scale with the amount and the change against the previous period.",
   props: z.object({
     lines: z.array(ledgerLineSchema).default([]),
   }),
@@ -136,6 +136,7 @@ export const ProfitWaterfall = defineComponent({
           comparison: l.previous,
         }))}
         comparisonLabel={props.comparisonLabel}
+        fill
       />
     );
   },
@@ -226,8 +227,6 @@ const BUDGET_LABEL = {
   on_track: { text: "On pace", tone: "positive" },
   over: { text: "Over pace", tone: "negative" },
 } as const;
-/** The pace bar runs to 150%; 98–102% is on pace, as the targets judge it. */
-const BUDGET_PACE_MAX = 150;
 
 export const AdBudgetPacing = defineComponent({
   name: "AdBudgetPacing",
@@ -239,7 +238,6 @@ export const AdBudgetPacing = defineComponent({
   component: ({ props }) => {
     const budgets = (props.budgets ?? []) as unknown as AdBudget[];
     if (budgets.length === 0) return <Pending kind="table" rows={3} />;
-    const at = (v: number) => `${(Math.min(v, BUDGET_PACE_MAX) / BUDGET_PACE_MAX) * 100}%`;
     return (
       <div className="kit-scroll">
         <table className="kit-table kit-commits">
@@ -264,21 +262,13 @@ export const AdBudgetPacing = defineComponent({
                     </span>
                   </th>
                   <td>
-                    <span className="kit-pace">
-                      <span className="kit-pace__track" aria-hidden>
-                        <i
-                          className="kit-pace__band"
-                          style={{ left: at(98), width: `calc(${at(102)} - ${at(98)})` }}
-                        />
-                        <i
-                          className={`kit-pace__mark kit-pace__mark--${b.status === "over" ? "bad" : b.status}`}
-                          style={{ left: at(b.pace) }}
-                        />
-                      </span>
-                      <span className={`kit-status kit-status--${label.tone}`}>
-                        {b.pace}% · {label.text}
-                      </span>
-                    </span>
+                    <PaceCell
+                      pace={b.pace}
+                      band={[98, 102]}
+                      mark={b.status === "over" ? "bad" : b.status}
+                      tone={label.tone}
+                      label={label.text}
+                    />
                   </td>
                   <td className="kit-commits__burn">
                     <BurnDown
@@ -310,7 +300,7 @@ export const AdBudgetPacing = defineComponent({
 export const ChannelPerformance = defineComponent({
   name: "ChannelPerformance",
   description:
-    "Marketing channel table: spend, attributed revenue with a sparkline, ROAS against the target (with its change), CPA, new customers, and share of revenue, plus a total row. Pass get_marketing_performance's channels and targetRoas directly.",
+    "Marketing channel table: spend, attributed revenue with a sparkline, ROAS against the target (with its change), CPA, new customers, and share of revenue, plus a total row.",
   props: z.object({
     channels: z.array(passed("A channel from get_marketing_performance")).default([]),
     targetRoas: z.number().optional(),
@@ -356,7 +346,7 @@ export const ChannelPerformance = defineComponent({
                   <td className="kit-num">{c.spend ? formatCurrency(c.spend) : "—"}</td>
                   <td className="kit-num kit-strong">{formatCurrency(c.revenue)}</td>
                   <td className="kit-cell-spark">
-                    {c.trend && <Sparkline values={c.trend} tone="neutral" height={26} />}
+                    {c.trend && <Sparkline values={c.trend} height={26} />}
                   </td>
                   <td>
                     {c.roas == null ? (
@@ -422,7 +412,7 @@ const SEGMENT_TONE = {
 export const CustomerSegments = defineComponent({
   name: "CustomerSegments",
   description:
-    "RFM customer segment tiles: each segment's customers, its share of customers against its share of revenue, average orders and spend, days since the last order, a health status, and the recommended action. Pass get_customer_segments's segments directly.",
+    "RFM customer segment tiles: each segment's customers, its share of customers against its share of revenue, average orders and spend, days since the last order, a health status, and the recommended action.",
   props: z.object({
     segments: z.array(passed("A segment from get_customer_segments")).default([]),
   }),
@@ -504,7 +494,7 @@ function Monogram({ name, category }: { name: string; category: string }) {
 export const ProductPerformance = defineComponent({
   name: "ProductPerformance",
   description:
-    "Product table for merchandising: revenue with change, a units sparkline, page views, add-to-cart rate, view-to-purchase rate, return rate (flagged when high), gross margin, and stock status. Pass get_product_performance's products directly.",
+    "Product table for merchandising: revenue with change, a units sparkline, page views, add-to-cart rate, view-to-purchase rate, return rate (flagged when high), gross margin, and stock status.",
   props: z.object({
     products: z.array(passed("A product from get_product_performance")).default([]),
   }),
@@ -550,7 +540,7 @@ export const ProductPerformance = defineComponent({
                 </td>
                 <td>
                   <span className="kit-units">
-                    {p.trend && <Sparkline values={p.trend} tone="neutral" height={22} />}
+                    {p.trend && <Sparkline values={p.trend} height={22} />}
                     <span className="kit-num">{formatNumber(p.units)}</span>
                   </span>
                 </td>
@@ -591,7 +581,7 @@ export const ProductPerformance = defineComponent({
 export const ProductLeaderboard = defineComponent({
   name: "ProductLeaderboard",
   description:
-    "Ranked best sellers with revenue, a sparkline, any stock warning, units, category, a bar against the leader, and the change. Pass get_product_performance's products.",
+    "Ranked best sellers with revenue, a sparkline, any stock warning, units, category, a bar against the leader, and the change.",
   props: z.object({
     products: z.array(passed("A product: {name, revenue, units?, category?, change?}")).default([]),
     limit: z.number().optional(),
@@ -619,7 +609,7 @@ export const ProductLeaderboard = defineComponent({
                 )}
                 {product.trend && product.trend.length > 1 && (
                   <span className="kit-leaderboard__spark" aria-hidden>
-                    <Sparkline values={product.trend} tone="neutral" height={20} />
+                    <Sparkline values={product.trend} height={20} />
                   </span>
                 )}
                 <span className="kit-num kit-strong">{formatCurrency(product.revenue)}</span>
@@ -672,10 +662,9 @@ const COVER_MAX = 90;
 export const InventoryHealth = defineComponent({
   name: "InventoryHealth",
   description:
-    "Every product's stock, most urgent first: ABC class, cover against the reorder point, status, next step: InventoryHealth(stock.catalog, stock.concentration).",
+    "Every product's stock, most urgent first: ABC class, cover against the reorder point, status, next step: InventoryHealth(stock.catalog).",
   props: z.object({
     catalog: z.array(passed("A product from get_inventory_health's catalog")).default([]),
-    concentration: z.string().optional(),
   }),
   component: ({ props }) => {
     const catalog = (props.catalog ?? []) as unknown as CatalogItem[];
@@ -683,7 +672,6 @@ export const InventoryHealth = defineComponent({
     const at = (days: number) => `${(Math.min(days, COVER_MAX) / COVER_MAX) * 100}%`;
     return (
       <div className="kit-stockhealth">
-        {props.concentration && <p className="kit-stockhealth__lead">{props.concentration}</p>}
         <div className="kit-scroll">
           <table className="kit-table kit-commits">
             <thead>
@@ -1082,7 +1070,7 @@ export const CreativeLeaderboard = defineComponent({
 export const InventoryAlerts = defineComponent({
   name: "InventoryAlerts",
   description:
-    "Products to restock, most urgent first: a days-of-cover timeline with the reorder point, when the open order lands, and any gap; the order-by date; sales at risk; and ad spend still pointing at it. Pass get_inventory_health's items.",
+    "Products to restock, most urgent first: a days-of-cover timeline with the reorder point, when the open order lands, and any gap; the order-by date; sales at risk; and ad spend still pointing at it.",
   props: z.object({
     items: z.array(passed("An item from get_inventory_health")).default([]),
   }),

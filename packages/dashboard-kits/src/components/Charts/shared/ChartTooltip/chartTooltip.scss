@@ -28,9 +28,9 @@
   margin: -2px 0 8px;
   padding: 5px 8px;
   border-radius: 6px;
-  background: color-mix(in oklch, var(--kit-s4) 14%, transparent);
+  background: var(--kit-sunk);
   font: 500 12px/1.35 var(--kit-font);
-  color: var(--kit-warn-ink);
+  color: var(--kit-ink-2);
   max-width: 240px;
 }
 .kit-tooltip__row {

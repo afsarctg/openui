@@ -1,6 +1,6 @@
 import { generateSystemPrompt, type LibrarySpec } from "@openuidev/lang-core";
 import { z } from "zod/v4";
-import { BASE_RULES, DATA_RULES } from "./base-prompt";
+import { BASE_RULES, COMPOSITION_RULES, DATA_RULES } from "./base-prompt";
 import { toToolSpec, type KitDefinition } from "./kit";
 
 /** A tool implementation: validated arguments in, a result matching the output schema out. */
@@ -17,7 +17,7 @@ export function buildSystemPrompt(kit: KitDefinition, spec: LibrarySpec): string
     ...rest,
     tools: kit.tools.map(toToolSpec),
     preamble: kit.preamble,
-    additionalRules: [...BASE_RULES, ...DATA_RULES, ...kit.rules],
+    additionalRules: [...BASE_RULES, ...DATA_RULES, ...COMPOSITION_RULES, ...kit.rules],
     toolExamples: kit.gallery
       .filter((dashboard) => dashboard.example !== false)
       .map((dashboard) => dashboard.program),
@@ -61,8 +61,13 @@ export function coerceArgs(input: z.ZodType, args: unknown): unknown {
       fallback = true;
       inner = inner.unwrap() as z.ZodType;
     }
-    if (inner instanceof z.ZodNumber && typeof value === "number" && Number.isFinite(value)) {
-      let v = inner.isInt ? Math.round(value) : value;
+    // A number sent as text ("12", "6 months") is read as its leading number.
+    const numeric =
+      inner instanceof z.ZodNumber && typeof value === "string"
+        ? Number.parseFloat(value.trim())
+        : value;
+    if (inner instanceof z.ZodNumber && typeof numeric === "number" && Number.isFinite(numeric)) {
+      let v = inner.isInt ? Math.round(numeric) : numeric;
       if (inner.minValue != null && Number.isFinite(inner.minValue))
         v = Math.max(inner.minValue, v);
       if (inner.maxValue != null && Number.isFinite(inner.maxValue))

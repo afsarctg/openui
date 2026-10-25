@@ -38,16 +38,15 @@
     fill: color-mix(in srgb, var(--kit-ink) 8%, var(--kit-card));
   }
 
-  &-fill--good {
-    fill: var(--kit-good);
-  }
-
+  // Progress is data: the accent while on pace or close, red once behind.
+  // The status pill beside the gauge carries on pace, at risk, or behind.
+  &-fill--good,
   &-fill--warn {
-    fill: var(--kit-warn);
+    fill: var(--kit-accent);
   }
 
   &-fill--bad {
-    fill: var(--kit-bad);
+    fill: var(--kit-down);
   }
 
   // Where the pace says the gauge should be by now.
@@ -147,7 +146,7 @@
 
   // The forecast's 80% range, from today to the period's end.
   &-cone {
-    fill: color-mix(in oklch, var(--kit-accent) 12%, transparent);
+    fill: color-mix(in oklab, var(--kit-accent) 12%, transparent);
     stroke: none;
   }
 

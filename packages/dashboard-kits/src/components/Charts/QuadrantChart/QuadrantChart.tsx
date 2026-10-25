@@ -3,6 +3,7 @@ import { scaleLinear, scaleSqrt } from "d3-scale";
 import { useCallback, useMemo, useState } from "react";
 import { useContainerSize } from "../hooks";
 import { ChartLegend, ChartTooltip } from "../shared";
+import { ChartEmpty } from "../shared/ChartEmpty";
 import { FadeFollower } from "../shared/spring";
 import { KIT_CHART_PREFIX } from "../utils/constants";
 import { QuadrantAxes } from "./parts/QuadrantAxes";
@@ -34,11 +35,7 @@ const RADIUS_RANGE = 11;
  */
 export function QuadrantChart(props: QuadrantChartProps) {
   if (props.points.length === 0) {
-    return (
-      <div className={clsx(`${P} ${P}--empty`, props.className)}>
-        <span className={`${P}-empty-text`}>No data available</span>
-      </div>
-    );
+    return <ChartEmpty prefix={P} className={props.className} />;
   }
   return <QuadrantChartImpl {...props} />;
 }

@@ -6,7 +6,7 @@
 
 .#{brand.$prefix}-quadrant {
   &-lead {
-    fill: color-mix(in oklch, var(--kit-s1) 5%, transparent);
+    fill: color-mix(in oklab, var(--kit-s1) 5%, transparent);
   }
 
   &-median {

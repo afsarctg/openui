@@ -55,7 +55,7 @@
   display: block;
   height: 6px;
   border-radius: 999px;
-  background: color-mix(in oklch, var(--kit-accent) 12%, var(--kit-card));
+  background: color-mix(in oklab, var(--kit-accent) 12%, var(--kit-card));
   overflow: hidden;
 }
 .kit-meter > span {
@@ -179,7 +179,7 @@
 }
 .kit-table tbody tr:hover th,
 .kit-table tbody tr:hover td {
-  background: color-mix(in oklch, var(--kit-sunk) 70%, transparent);
+  background: color-mix(in oklab, var(--kit-sunk) 70%, transparent);
 }
 .kit-table tfoot td {
   border-top: 1px solid var(--kit-border-strong);
@@ -214,6 +214,11 @@
 }
 .kit-theme .c1-shell-card__content:has([data-kit-fill]) {
   flex: 1 1 auto;
+}
+/* A row whose cards differ too much in height for any chart to make up
+   (see genui-lib/rowBalance.ts): every card takes the full width instead. */
+.kit-theme .c1-card-row.kit-row--stacked > .c1-shell-card {
+  flex: 1 1 100%;
 }
 
 // Text for screen readers only, such as a table caption the card header already says.
@@ -323,30 +328,96 @@
   color: #fff;
 }
 .kit-action__done {
+  flex: none;
   font: 600 12px var(--kit-font);
   color: var(--kit-ink-3);
 }
-.kit-actions__log {
+.kit-action--approved .kit-action__done {
+  color: var(--kit-good-ink);
+}
+// A decided action folds to one line: its decision, its title, and Undo.
+.kit-action--decided {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-top: 10px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: none;
+}
+.kit-action__done-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 12.5px var(--kit-font);
+  color: var(--kit-ink-2);
+}
+.kit-action__undo,
+.kit-actions__more {
+  flex: none;
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  font: 600 12px var(--kit-font);
+  color: var(--kit-accent);
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--kit-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+.kit-actions__more {
+  align-self: flex-start;
+  padding-left: 0;
+}
+.kit-actions__note {
+  margin: 0;
+  font: 400 12px/1.5 var(--kit-font);
+  color: var(--kit-ink-3);
+}
+.kit-actions__log {
+  padding-top: 8px;
   border-top: 1px dashed var(--kit-border);
   font: 400 12px/1.5 var(--kit-font);
   color: var(--kit-ink-2);
 
+  summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--kit-ink-3);
+  }
+
   ul {
-    margin: 0;
+    margin: 6px 0 0;
     padding-left: 16px;
   }
 }
-.kit-actions__log-title {
-  font-weight: 600;
-  color: var(--kit-ink-3);
+// In a narrow card the buttons go under the text, so the text takes the
+// whole width and wraps less.
+.kit-actions {
+  container-type: inline-size;
 }
-@media (max-width: 560px) {
-  .kit-action {
+// and the reason clamps to two lines (the full text is its tooltip), so the
+// card sits closer to the height of its neighbours.
+@container (max-width: 520px) {
+  .kit-action:not(.kit-action--decided) {
     grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .kit-action__detail {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+  .kit-action__approve,
+  .kit-action__dismiss {
+    padding: 4px 10px;
+    font-size: 12px;
   }
 }
 

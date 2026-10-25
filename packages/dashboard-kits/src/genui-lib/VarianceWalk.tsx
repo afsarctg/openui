@@ -24,6 +24,7 @@ export const VarianceWalk = defineComponent({
         comparisonLabel={props.comparisonLabel}
         format={props.format ?? "currency"}
         zero={false}
+        fill
       />
     );
   },

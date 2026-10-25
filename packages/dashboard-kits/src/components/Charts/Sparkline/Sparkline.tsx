@@ -1,10 +1,9 @@
 import clsx from "clsx";
 import { scaleLinear } from "d3-scale";
-import { useId, useMemo, useRef } from "react";
-import type { Tone } from "../../../core/format";
+import { useMemo, useRef } from "react";
 import { useContainerSize, useIsomorphicLayoutEffect } from "../hooks";
 import { AnimatedPath } from "../shared/AnimatedPath";
-import { areaD, lineD, packGeometry, seriesCurve, unpackGeometry } from "../shared/seriesGeometry";
+import { lineD, packGeometry, seriesCurve, unpackGeometry } from "../shared/seriesGeometry";
 import { springPresets, useDataMorph } from "../shared/spring";
 import { KIT_CHART_PREFIX } from "../utils/constants";
 import type { SparklineProps } from "./types";
@@ -19,15 +18,18 @@ const PAD_X = 3;
 const PAD_Y = 4;
 const CURVE = seriesCurve("natural");
 
-const TONE_COLOR: Record<Tone, string> = {
-  good: "var(--kit-good)",
-  bad: "var(--kit-bad)",
-  neutral: "var(--kit-accent)",
-};
+/**
+ * A sparkline is a quiet companion to its KPI: a thin muted line, no wash, and
+ * only the latest value in the accent. The delta beside it says whether the
+ * change is good; a row of coloured, filled lines turned the KPI strip into
+ * the loudest thing on the dashboard.
+ */
+const LINE_COLOR = "var(--kit-spark)";
+const DOT_COLOR = "var(--kit-accent)";
 
 /**
  * A KPI's recent trend: a d3 monotone curve with a soft wash and a dot on the
- * latest value, colored by whether the change is good for that metric. Unlike
+ * latest value: a muted line with the accent on its last point. Unlike
  * react-ui's MiniAreaChart it keeps every point and fits its range to the
  * data, so a metric moving between 40K and 45K still reads as a trend. Drawn
  * at the container's real width (no stretched viewBox, so the dot stays round)
@@ -40,13 +42,11 @@ export function Sparkline(props: SparklineProps) {
 
 function SparklineImpl({
   values,
-  tone = "neutral",
   height = 36,
   isAnimationActive = true,
   className,
 }: SparklineProps) {
   const [frameRef, size] = useContainerSize<HTMLDivElement>(160, height);
-  const gradientId = `${P}-g${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const width = Math.max(size.width, 40);
   const n = values.length;
 
@@ -69,21 +69,18 @@ function SparklineImpl({
     const line = ys[0]!;
     return {
       line: lineD(xs, line, CURVE),
-      area: areaD(xs, height, line, CURVE),
       dot: { x: xs[n - 1]!, y: line[n - 1]! },
     };
   };
   const target = draw(flat);
 
   const lineRef = useRef<SVGPathElement>(null);
-  const areaRef = useRef<SVGPathElement>(null);
   const dotRef = useRef<SVGCircleElement>(null);
   const drawRef = useRef(draw);
   drawRef.current = draw;
   const aim = useDataMorph(springPresets.dataMorph, (animated) => {
     const g = drawRef.current(animated);
     lineRef.current?.setAttribute("d", g.line);
-    areaRef.current?.setAttribute("d", g.area);
     dotRef.current?.setAttribute("cx", String(g.dot.x));
     dotRef.current?.setAttribute("cy", String(g.dot.y));
   });
@@ -95,22 +92,10 @@ function SparklineImpl({
     aim(flat, snap);
   }, [flat, width, isAnimationActive, aim]);
 
-  const color = TONE_COLOR[tone];
+  const color = LINE_COLOR;
   return (
     <div ref={frameRef} className={clsx(P, className)} style={{ height }} aria-hidden>
       <svg width={width} height={height} className={`${P}-svg`}>
-        <defs>
-          <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity={0.22} />
-            <stop offset="100%" stopColor={color} stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <path
-          ref={areaRef}
-          d={target.area}
-          fill={`url(#${gradientId})`}
-          className={clsx(`${P}-area`, isAnimationActive && `${P}-area--animated`)}
-        />
         <AnimatedPath
           pathRef={lineRef}
           d={target.line}
@@ -123,7 +108,7 @@ function SparklineImpl({
           cx={target.dot.x}
           cy={target.dot.y}
           r={2.75}
-          fill={color}
+          fill={DOT_COLOR}
           className={clsx(`${P}-dot`, isAnimationActive && `${P}-late--animated`)}
         />
       </svg>

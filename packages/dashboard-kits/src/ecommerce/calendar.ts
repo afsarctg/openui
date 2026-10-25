@@ -1,4 +1,4 @@
-import { TODAY } from "../core/sample-data";
+import { DAY, daysAgoOf as daysAgo, TODAY } from "../core/sample-data";
 
 // The store's calendar: promotions, launches, stockouts, incidents, and
 // tracking changes. The daily history reads demand from it and the charts
@@ -22,11 +22,8 @@ export interface StoreEvent {
   dip?: number;
 }
 
-const DAY = 86_400_000;
 /** 52 weeks, so a day last year falls on the same weekday. */
 export const LAST_YEAR = 364;
-const daysAgo = (year: number, month: number, day: number) =>
-  Math.round((TODAY - Date.UTC(year, month - 1, day)) / DAY);
 
 export const STORE_EVENTS: StoreEvent[] = [
   {

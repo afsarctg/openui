@@ -219,8 +219,8 @@ alertsHeader = DashboardCardHeader("Restock now", "Below reorder point, with ope
 alerts = InventoryAlerts(stock.items)
 healthRow = CardRow([healthCard])
 healthCard = LargeCard([healthHeader, healthTable])
-healthHeader = DashboardCardHeader("Every product's stock", "Most urgent first; the tick marks the reorder point, lead time plus safety stock")
-healthTable = InventoryHealth(stock.catalog, stock.concentration)
+healthHeader = DashboardCardHeader("Every product's stock", stock.concentration)
+healthTable = InventoryHealth(stock.catalog)
 returns = Query("get_returns", {range: $range, category: $category}, {periodLabel: "", lines: [], metrics: [], reasons: [], products: []})
 returnRow = CardRow([returnCard, sizeCard])
 returnCard = LargeCard([returnHeader, returnStrip, returnLedger, reasonList])
@@ -387,9 +387,9 @@ export const ecommerceKit: KitDefinition = {
   rules: [
     'Filters: $range ("7d" | "30d" | "90d" | "mtd", default "30d"), $channel ("all" | "online" | "app" | "amazon"), $category ("all" | "apparel" | "footwear" | "accessories" | "home"), $device ("all" | "desktop" | "mobile" | "tablet"), $customer ("all" | "new" | "returning"; argument customerType), $compare ("previous_period" | "last_year" | "plan"; "plan" for a store overview). Arguments of the same names take these values; add only filters the dashboard\'s tools accept.',
     `Definitions: ${glossary()}. Each KPI carries its definition, shown when hovering its value.`,
-    "Layout: a hero row whose MediumCard explains the hero (InsightList with a limit, DriverCards, a funnel, or MoneyBreakdown), the KpiStrip row, then rows of three MediumCards or a LargeCard and a MediumCard.",
+    "Layout: rows of three MediumCards, or a LargeCard and a MediumCard. An overview opens with the hero beside a MediumCard that explains it (InsightList with a limit, DriverCards, a funnel, or MoneyBreakdown), then the KpiStrip row. An InsightList always takes a limit of 3 or 4.",
     'Use a KPI tool\'s periodLabel as the DashboardHeader subtitle: DashboardHeader("Store overview", kpis.periodLabel). KPI query defaults: {periodLabel: "", hero: {label: "Loading", value: "—"}, heroTrend: {labels: [], current: []}, metrics: []}.',
-    'Charts: TrendChart over time (prior period "muted"), ColumnChart for per-period counts or composition, BarList for ranked categories, ShareBar for part-to-whole, HeatGrid for weekday by hour. Not LineChart, AreaChart, BarChart, or PieChart.',
+    'Charts by question, preferring the specific one when the question matches it: change over time → TrendChart (prior period "muted"); per-period counts or gains and losses → ColumnChart; ranked categories → BarList; part-to-whole → ShareBar; when orders come in → HeatGrid(hours.rows, hours.columns, "orders") from get_orders_by_hour; which products to push, fix, or cut → ProductQuadrant(catalog.products) from get_product_performance with limit 16; on pace for the month → GoalPace(goal) from get_sales_goal; how customers moved between segments → SegmentFlow(segments.movement) from get_customer_segments; shipping on time day by day → Tracker(sla.days, sla.summary) from get_fulfillment_sla. Not LineChart, AreaChart, BarChart, or PieChart.',
     "Why questions → explain_change (DriverCards, VarianceWalk), with the question's metric and the dashboard's range, channel, and compare; never write a cause the tools did not return. Otherwise: overview → get_store_kpis, get_store_insights; profit → get_profit_bridge; marketing → get_marketing_performance, get_creatives, get_reconciliation; customers → get_customer_kpis, get_customer_flow, get_customer_cohorts, get_customer_segments; products and stock → get_product_performance, get_inventory_health, get_returns; timing → get_orders_by_hour; conversion → get_purchase_journey, get_checkout_journey; plans → get_targets, get_sales_goal, get_sale_plan; promotions → get_promo_impact; today and now → get_live_view; next steps → get_actions.",
     'Give every card but the hero a DashboardCardHeader whose subtitle says what is measured and against what. A card that leads with one number makes it the title, titleType "number".',
   ],
@@ -473,5 +473,6 @@ export const ecommerceKit: KitDefinition = {
     "Is our ad spend paying back? Compare channels against the ROAS target and show contribution profit.",
     "How valuable are the customers we acquired this year, and who is about to churn?",
     "Which products need restocking, and where do mobile shoppers drop off in checkout?",
+    "When do orders come in, which products should we push or cut, and are we on pace for this month's sales goal?",
   ],
 };

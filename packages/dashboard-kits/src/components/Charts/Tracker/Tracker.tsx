@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { scaleBand } from "d3-scale";
 import { useCallback, useId, useMemo } from "react";
 import { useChartHover, useContainerSize } from "../hooks";
+import { ChartEmpty } from "../shared/ChartEmpty";
 import { FadeFollower } from "../shared/spring";
 import { KIT_CHART_PREFIX } from "../utils/constants";
 import { findBandIndex } from "../utils/mouseUtils";
@@ -23,11 +24,7 @@ const RING = 3;
  */
 export function Tracker(props: TrackerProps) {
   if (props.items.length === 0) {
-    return (
-      <div className={clsx(`${P} ${P}--empty`, props.className)}>
-        <span className={`${P}-empty-text`}>No data available</span>
-      </div>
-    );
+    return <ChartEmpty prefix={P} className={props.className} />;
   }
   return <TrackerImpl {...props} />;
 }

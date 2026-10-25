@@ -9,7 +9,11 @@ export { formatCurrency, formatNumber, formatPercent } from "./format";
 export const TODAY = Date.UTC(2026, 9, 10);
 /** When the sample data was last "updated": the time of the newest order. */
 export const AS_OF = "Oct 10, 3:48 PM";
-const DAY = 86_400_000;
+export const DAY = 86_400_000;
+
+/** Days before today of a calendar date (month 1–12; day 0 is the month before's last day). */
+export const daysAgoOf = (year: number, month: number, day: number) =>
+  Math.round((TODAY - Date.UTC(year, month - 1, day)) / DAY);
 
 /** Days in each period; this month to date is Oct 1–10. */
 export const RANGE_DAYS: Record<Range, number> = { "7d": 7, "30d": 30, "90d": 90, mtd: 10 };
@@ -123,6 +127,26 @@ export function eventSpan(
   };
   return { label, start: week(from), end: week(toDaysAgo), ...extra };
 }
+
+/** A kit calendar's events that fall in the range, as chart events with their kind. */
+export function calendarEvents(
+  range: Range,
+  events: {
+    label: string;
+    from: number;
+    to: number;
+    detail?: string;
+    kind: NonNullable<ChartEvent["kind"]>;
+  }[],
+): ChartEvent[] {
+  return events.flatMap((e) => {
+    const span = eventSpan(range, e.label, e.from, e.to, e.detail);
+    return span ? [{ ...span, kind: e.kind }] : [];
+  });
+}
+
+/** How many earlier windows of this length to judge a change against (our rule). */
+export const PAST_WINDOWS: Record<Range, number> = { "7d": 8, "30d": 6, "90d": 3, mtd: 8 };
 
 /** At most `points` evenly spaced values, each the mean of its span, for sparklines. */
 export function downsample(values: number[], points = 15): number[] {

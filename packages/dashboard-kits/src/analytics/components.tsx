@@ -11,6 +11,7 @@ import { SegmentFlow as SegmentFlowView } from "../components/Charts/SegmentFlow
 import { SixTwelve } from "../components/Charts/SixTwelve";
 import { Sparkline } from "../components/Charts/Sparkline";
 import { MUTED_COLOR, SERIES_COLORS } from "../components/Charts/utils/constants";
+import { PaceCell } from "../components/PaceCell";
 import { formatChange, formatCurrency, formatNumber, formatPoints } from "../core/format";
 import { passed } from "../core/schemas";
 import { Pending } from "../genui-lib/Pending";
@@ -40,18 +41,21 @@ type ReviewMetric = z.infer<typeof reviewMetricSchema>;
 
 const shortWeek = (label: string) => label.replace(/^Wk of /, "");
 
-/** Validated in stack order (resurrecting, new, returning, then dormant below zero). */
+/**
+ * Gains in shades of the accent, losses in the kit's down red: the same
+ * polarity colors every gains-and-losses chart uses (see colorSeries).
+ */
 const LIFECYCLE = [
-  { key: "returning", name: "Returning", color: "var(--kit-s1)" },
-  { key: "newUsers", name: "New", color: "var(--kit-s3)" },
-  { key: "resurrecting", name: "Resurrecting", color: "var(--kit-s2)" },
+  { key: "returning", name: "Returning", color: "var(--kit-o3)" },
+  { key: "newUsers", name: "New", color: "var(--kit-o5)" },
+  { key: "resurrecting", name: "Resurrecting", color: "var(--kit-o1)" },
 ] as const;
-const DORMANT = "var(--kit-s8)";
+const DORMANT = "var(--kit-down)";
 
 export const LifecycleChart = defineComponent({
   name: "LifecycleChart",
   description:
-    "Lifecycle (growth accounting) chart: per week, stacked columns of returning, new, and resurrecting users above zero and dormant users below it, with a tooltip per week and the latest quick ratio. Pass get_lifecycle's labels, newUsers, returning, resurrecting, dormant, and quickRatio directly.",
+    "Lifecycle (growth accounting) chart: per week, stacked columns of returning, new, and resurrecting users above zero and dormant users below it, with a tooltip per week and the latest quick ratio.",
   props: z.object({
     labels: z.array(z.string()).default([]),
     newUsers: z.array(z.number()).default([]),
@@ -131,7 +135,7 @@ export const LifecycleFlow = defineComponent({
 export const PowerUserCurve = defineComponent({
   name: "PowerUserCurve",
   description:
-    "Power user curve (stickiness): columns for the share of active users who were active on 1, 2, … N days of the last 7 or 28 days, with power users in the accent and everyone else in gray, and their share summarized. Pass get_stickiness's buckets, window, and powerUserShare directly.",
+    "Power user curve (stickiness): columns for the share of active users who were active on 1, 2, … N days of the last 7 or 28 days, with power users in the accent and everyone else in gray, and their share summarized.",
   props: z.object({
     buckets: z.array(z.object({ days: z.number(), users: z.number() })).default([]),
     window: z.number().optional(),
@@ -173,7 +177,7 @@ export const PowerUserCurve = defineComponent({
 export const EngagementMatrix = defineComponent({
   name: "EngagementMatrix",
   description:
-    "Feature engagement matrix: each feature a bubble placed by breadth (percent of monthly active users) and frequency (days used per week), sized by users, split at the medians into Core, Power, Broad but infrequent, and Review or retire. Pass get_feature_engagement's features directly.",
+    "Feature engagement matrix: each feature a bubble placed by breadth (percent of monthly active users) and frequency (days used per week), sized by users, split at the medians into Core, Power, Broad but infrequent, and Review or retire.",
   props: z.object({
     features: z.array(passed("A feature from get_feature_engagement")).default([]),
   }),
@@ -224,7 +228,7 @@ const VALUE_SPLIT = { x: 30, y: 5 };
 export const FeatureValue = defineComponent({
   name: "FeatureValue",
   description:
-    "Feature value matrix: breadth against retention gap among activated users, in Protect, Promote, Don't gate, and Review quadrants, sized by days a week. Pass get_feature_engagement's features directly.",
+    "Feature value matrix: breadth against retention gap among activated users, in Protect, Promote, Don't gate, and Review quadrants, sized by days a week.",
   props: z.object({
     features: z.array(passed("A feature from get_feature_engagement")).default([]),
   }),
@@ -285,7 +289,7 @@ export const FeatureValue = defineComponent({
 export const FeatureAdoption = defineComponent({
   name: "FeatureAdoption",
   description:
-    "Feature adoption as ranked bars: percent of monthly active users who used each feature, with user counts, days per week, and the change in percentage points. Pass get_feature_engagement's features directly.",
+    "Feature adoption as ranked bars: percent of monthly active users who used each feature, with user counts, days per week, and the change in percentage points.",
   props: z.object({
     features: z.array(passed("A feature from get_feature_engagement")).default([]),
     limit: z.number().optional(),
@@ -324,7 +328,7 @@ export const FeatureAdoption = defineComponent({
 export const EventTable = defineComponent({
   name: "EventTable",
   description:
-    "Top tracked events as a table: event name, volume with a bar against the largest, unique users, events per user, and change against the prior period. Pass get_top_events' events directly.",
+    "Top tracked events as a table: event name, volume with a bar against the largest, unique users, events per user, and change against the prior period.",
   props: z.object({
     events: z.array(passed("An event from get_top_events")).default([]),
   }),
@@ -450,7 +454,7 @@ export const ReleaseImpact = defineComponent({
 export const ActivityHeatmap = defineComponent({
   name: "ActivityHeatmap",
   description:
-    "Weekday by hour heatmap of activity, shaded relative to the busiest hour, with the hovered cell read out. Pass get_activity_heatmap's days and hourLabels directly.",
+    "Weekday by hour heatmap of activity, shaded relative to the busiest hour, with the hovered cell read out.",
   props: z.object({
     days: z.array(z.object({ day: z.string(), values: z.array(z.number()) })).default([]),
     hourLabels: z.array(z.string()).optional(),
@@ -492,7 +496,7 @@ const OUTCOME_TONE = {
 export const UserPaths = defineComponent({
   name: "UserPaths",
   description:
-    "Most common user paths after a start event: each path's steps in order, its share of users, and whether it ended activated, in progress, or dropped. Pass get_user_paths's start, totalUsers, and paths directly.",
+    "Most common user paths after a start event: each path's steps in order, its share of users, and whether it ended activated, in progress, or dropped.",
   props: z.object({
     start: z.string().optional(),
     totalUsers: z.number().optional(),
@@ -590,7 +594,7 @@ const significanceText = (s: number) =>
 export const ExperimentResults = defineComponent({
   name: "ExperimentResults",
   description:
-    "A/B test scorecards: each variant's lift with its 95% interval, a split warning, guardrail lights, and the decision. Pass get_experiments's experiments directly.",
+    "A/B test scorecards: each variant's lift with its 95% interval, a split warning, guardrail lights, and the decision.",
   props: z.object({
     experiments: z.array(passed("An experiment from get_experiments")).default([]),
   }),
@@ -862,7 +866,7 @@ function HealthBreakdown({ account }: { account: Account }) {
       </ul>
       <div className="kit-breakdown__history">
         <span className="kit-small kit-muted">Last 12 weeks</span>
-        <Sparkline values={account.history} tone={account.change >= 0 ? "good" : "bad"} />
+        <Sparkline values={account.history} />
       </div>
     </div>
   );
@@ -974,7 +978,7 @@ const PAYWALL_SPLIT = { x: 500, y: 2 };
 export const PaywallMatrix = defineComponent({
   name: "PaywallMatrix",
   description:
-    "Free plan limits by weekly hits and the share that upgrade within 14 days, in Working, Show more, Friction, and Rethink quadrants. Pass get_monetization's paywalls directly.",
+    "Free plan limits by weekly hits and the share that upgrade within 14 days, in Working, Show more, Friction, and Rethink quadrants.",
   props: z.object({
     paywalls: z.array(passed("A paywall from get_monetization")).default([]),
   }),
@@ -1026,20 +1030,17 @@ const PACE_LABEL = {
   on_track: { text: "On track", tone: "positive" },
   over: { text: "Over pace", tone: "info" },
 } as const;
-/** The pace bar runs to 150%; 80–110% is on track (our rule). */
-const PACE_MAX = 150;
 
 export const CommitPacing = defineComponent({
   name: "CommitPacing",
   description:
-    "AI credit commits: each one's pace against a straight line through its term (80–110% on track), its burn-down with where this pace ends at renewal, and the renewal date. Pass get_usage_commits's commits directly.",
+    "AI credit commits: each one's pace against a straight line through its term (80–110% on track), its burn-down with where this pace ends at renewal, and the renewal date.",
   props: z.object({
     commits: z.array(passed("A commit from get_usage_commits")).default([]),
   }),
   component: ({ props }) => {
     const commits = (props.commits ?? []) as unknown as Commit[];
     if (commits.length === 0) return <Pending kind="table" rows={6} />;
-    const at = (v: number) => `${(Math.min(v, PACE_MAX) / PACE_MAX) * 100}%`;
     return (
       <div className="kit-scroll">
         <table className="kit-table kit-commits">
@@ -1064,21 +1065,13 @@ export const CommitPacing = defineComponent({
                     </span>
                   </th>
                   <td>
-                    <span className="kit-pace">
-                      <span className="kit-pace__track" aria-hidden>
-                        <i
-                          className="kit-pace__band"
-                          style={{ left: at(80), width: `calc(${at(110)} - ${at(80)})` }}
-                        />
-                        <i
-                          className={`kit-pace__mark kit-pace__mark--${c.status}`}
-                          style={{ left: at(c.pace) }}
-                        />
-                      </span>
-                      <span className={`kit-status kit-status--${label.tone}`}>
-                        {c.pace}% · {label.text}
-                      </span>
-                    </span>
+                    <PaceCell
+                      pace={c.pace}
+                      band={[80, 110]}
+                      mark={c.status}
+                      tone={label.tone}
+                      label={label.text}
+                    />
                   </td>
                   <td className="kit-commits__burn">
                     <BurnDown
@@ -1107,7 +1100,7 @@ export const CommitPacing = defineComponent({
 export const WeeklyReview = defineComponent({
   name: "WeeklyReview",
   description:
-    "Weekly business review in the 6-12 shape: one row per metric with the last 6 weeks and 12 months, last year faded and the plan dashed, its latest week against plan and last year, and for exceptions the cause or the owner who must find it. Pass get_weekly_review's rows directly.",
+    "Weekly business review in the 6-12 shape: one row per metric with the last 6 weeks and 12 months, last year faded and the plan dashed, its latest week against plan and last year, and for exceptions the cause or the owner who must find it.",
   props: z.object({
     rows: z.array(passed("A row from get_weekly_review")).default([]),
   }),

@@ -3,6 +3,7 @@ import { scaleBand } from "d3-scale";
 import { useCallback, useMemo, type KeyboardEvent } from "react";
 import { useChartHover, useContainerSize } from "../hooks";
 import { ChartTooltip } from "../shared";
+import { ChartEmpty } from "../shared/ChartEmpty";
 import { FadeFollower } from "../shared/spring";
 import { KIT_CHART_PREFIX, SERIES_COLORS } from "../utils/constants";
 import { formatValue } from "../utils/format";
@@ -19,7 +20,7 @@ const MIN_WIDTH = 240;
 const shade = (step: number) =>
   step === 0
     ? "var(--kit-sunk)"
-    : `color-mix(in oklch, ${SERIES_COLORS[0]} ${heatMix(step)}%, var(--kit-card))`;
+    : `color-mix(in oklab, ${SERIES_COLORS[0]} ${heatMix(step)}%, var(--kit-card))`;
 
 /**
  * Rows by columns of cells (weekday by hour) on two d3 band scales, shaded in
@@ -32,11 +33,7 @@ const shade = (step: number) =>
 export function HeatGrid(props: HeatGridProps) {
   const hasData = props.rows.length > 0 && props.columns.length > 0;
   if (!hasData) {
-    return (
-      <div className={clsx(`${P} ${P}--empty`, props.className)}>
-        <span className={`${P}-empty-text`}>No data available</span>
-      </div>
-    );
+    return <ChartEmpty prefix={P} className={props.className} />;
   }
   return <HeatGridImpl {...props} />;
 }

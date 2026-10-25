@@ -10,7 +10,12 @@ import { ecommerceHandlers } from "./ecommerce/data";
 import { ecommerceKit } from "./ecommerce/kit";
 
 export { analyticsTools } from "./analytics/tools";
-export { BASE_COMPONENT_GROUPS, BASE_RULES, DATA_RULES } from "./core/base-prompt";
+export {
+  BASE_COMPONENT_GROUPS,
+  BASE_RULES,
+  COMPOSITION_RULES,
+  DATA_RULES,
+} from "./core/base-prompt";
 export { defineTool, toToolSpec } from "./core/kit";
 export type { GalleryDashboard, KitDefinition, KitTool } from "./core/kit";
 export { buildSystemPrompt, runTool } from "./core/prompt";

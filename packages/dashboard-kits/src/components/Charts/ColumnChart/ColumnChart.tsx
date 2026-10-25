@@ -5,9 +5,11 @@ import {
   useChartHover,
   useContainerSize,
   useIsomorphicLayoutEffect,
+  useKitPalette,
   useSeriesFocus,
 } from "../hooks";
-import { ChartLegend, ChartTooltip, colorSeries } from "../shared";
+import { ChartLegend, ChartTooltip, colorSeries, paletteCount } from "../shared";
+import { ChartEmpty } from "../shared/ChartEmpty";
 import { FadeFollower, springPresets, useDataMorph } from "../shared/spring";
 import { FILL_MAX_HEIGHT, KIT_CHART_PREFIX } from "../utils/constants";
 import { formatTicks, formatValue } from "../utils/format";
@@ -50,11 +52,7 @@ export function ColumnChart(props: ColumnChartProps) {
   const hasData =
     props.labels.length > 0 && props.series.some((s) => s.values.some(Number.isFinite));
   if (!hasData) {
-    return (
-      <div className={clsx(`${P} ${P}--empty`, props.className)}>
-        <span className={`${P}-empty-text`}>No data available</span>
-      </div>
-    );
+    return <ChartEmpty prefix={P} className={props.className} />;
   }
   return <ColumnChartImpl {...props} />;
 }
@@ -76,7 +74,9 @@ function ColumnChartImpl({
 }: ColumnChartProps) {
   const [frameRef, size] = useContainerSize<HTMLDivElement>(640, height);
   const focus = useSeriesFocus();
-  const series = useMemo(() => colorSeries(seriesProp.slice(0, 8)), [seriesProp]);
+  const drawn = useMemo(() => seriesProp.slice(0, 8), [seriesProp]);
+  const palette = useKitPalette(paletteCount(drawn), "barChartPalette");
+  const series = useMemo(() => colorSeries(drawn, palette), [drawn, palette]);
   const n = labels.length;
   const width = Math.max(size.width, MIN_WIDTH);
   const plotHeight = fill ? Math.min(maxHeight, Math.max(height, size.height)) : height;

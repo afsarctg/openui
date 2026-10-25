@@ -40,6 +40,8 @@ const library = createEcommerceLibrary(dashboardLibrary);
 </div>;
 ```
 
+The kits render in the OpenUI design system: wrap them in react-ui's `ThemeProvider`, and every kit colour, font, radius, and status colour reads its `--openui-*` token, so light and dark mode and any theme override apply to the kits as they do to the base dashboard. Chart series take the theme's chart palette (`lineChartPalette`, `barChartPalette`, `pieChartPalette`, else `defaultChartPalette`, else OpenUI's Ocean ramp), distributed the way react-ui's charts distribute it.
+
 ```ts
 // Server: prompt assembly and tool execution against the sample data.
 import {
@@ -83,8 +85,8 @@ src/
                          metric definitions (metrics.ts), and the why math (explain.ts: shares, mix and rate,
                          confidence, walks)
   ecommerce/ analytics/  each kit: components, library, tools, kit (prompt and gallery), sample data, and its
-  usage/                 tested models (calendar; analytics: population, moments, workspaces, experiments, revenue
-                         and commit pacing, alert rules; usage: a member-by-member model of a customer workspace)
+                         tested models (calendar; analytics: population, moments, workspaces, experiments, revenue
+                         and commit pacing, alert rules)
   styles/                theme tokens, shared primitives, each kit's component styles
 ```
 

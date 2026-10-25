@@ -54,11 +54,7 @@ export function KpiStrip({ metrics, selected, onSelect }: KpiStripProps) {
         <DeltaPill change={m.change} goodDirection={m.goodDirection} />
         {m.previous && <span className="kit-kpi__previous">vs {m.previous}</span>}
       </span>
-      {m.series && m.series.length > 1 ? (
-        <Sparkline values={m.series} tone={changeTone(m.change, m.goodDirection)} />
-      ) : (
-        <span />
-      )}
+      {m.series && m.series.length > 1 ? <Sparkline values={m.series} /> : <span />}
       <span className="kit-kpi__hint">
         {m.usual && m.usual.status !== "within" ? <UsualNote kpi={m} /> : m.hint}
       </span>

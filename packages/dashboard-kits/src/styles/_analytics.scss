@@ -311,13 +311,13 @@
   top: 4px;
   height: 8px;
   border-radius: 999px;
-  background: color-mix(in oklch, var(--kit-ink-3) 35%, transparent);
+  background: color-mix(in oklab, var(--kit-ink-3) 35%, transparent);
 }
 .kit-ci__range--good {
-  background: color-mix(in oklch, var(--kit-good) 40%, transparent);
+  background: color-mix(in oklab, var(--kit-up) 35%, transparent);
 }
 .kit-ci__range--bad {
-  background: color-mix(in oklch, var(--kit-bad) 40%, transparent);
+  background: color-mix(in oklab, var(--kit-down) 35%, transparent);
 }
 .kit-ci__dot {
   position: absolute;
@@ -330,10 +330,10 @@
   border: 2px solid var(--kit-card);
 }
 .kit-ci__dot--good {
-  background: var(--kit-good);
+  background: var(--kit-up);
 }
 .kit-ci__dot--bad {
-  background: var(--kit-bad);
+  background: var(--kit-down);
 }
 .kit-ci__bounds {
   font: 400 11.5px var(--kit-font);

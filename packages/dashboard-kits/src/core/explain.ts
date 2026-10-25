@@ -10,6 +10,7 @@
 // - confidence: whether the change stands out from the metric's own recent
 //   history, as a z-score with a High / Medium / Low label.
 
+import type { Insight, Why } from "./schemas";
 export interface Segment {
   key: string;
   label: string;
@@ -186,4 +187,22 @@ export function walk(
       })),
     { label: end.label, value: end.value, kind: "total" },
   ];
+}
+
+/**
+ * The insight a period's explanation makes: up or down by how much against
+ * what, with its biggest driver, or a note when the change is within the
+ * normal range (a change there is a note, not news).
+ */
+export function periodChangeInsight(why: Why, label: string, against: string): Insight {
+  const driver = why.drivers[0];
+  return {
+    tone: why.confidence.level === "Low" ? "info" : why.tone === "bad" ? "negative" : "positive",
+    kind: "period_change",
+    title: `${label} ${why.change >= 0 ? "up" : "down"} ${Math.abs(why.change).toFixed(1)}% ${against}`,
+    detail: driver
+      ? `${driver.name} (${driver.dimension.toLowerCase()}) moved most: ${driver.delta}, ${Math.round(Math.abs(driver.share) * 100)}% of the change.`
+      : `${why.confidence.note}, so no single cause stands out.`,
+    metric: why.value,
+  };
 }

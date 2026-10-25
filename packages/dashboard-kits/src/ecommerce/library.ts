@@ -43,13 +43,7 @@ export function createEcommerceLibrary(base: Library): Library {
   return createKitLibrary(base, {
     group: {
       name: "E-commerce",
-      notes: [
-        'Lead every dashboard with one HeroMetric(kpis.hero, kpis.heroTrend, kpis.metrics, $metric) in a LargeCard; put the supporting KpiStrip(kpis.metrics, $metric) in its own LargeCard row, with RuleChips(kpis.rules) under it. The shared $metric (declare $metric = "") makes each KPI tile a tab that shows its metric in the hero chart.',
-        "Charts: TrendChart for anything over time, ColumnChart for counts per period or stacked composition (negative values draw below the line), BarList for ranked categories, ShareBar for part-to-whole. Prefer them over LineChart, AreaChart, BarChart, and PieChart.",
-        'Why questions: why = Query("explain_change", {metric: "contribution_profit", range: $range, compare: $compare}, {...}) then DriverCards(why) and VarianceWalk(why.walk, why.comparisonLabel, why.format).',
-        'Breakdowns whose items carry keys (sales by channel, device, or category) can filter the dashboard: pass the matching filter $binding last, e.g. ShareBar(byChannel.items, "currency", $channel).',
-        "Put a DashboardCardHeader before each of these components.",
-      ],
+      notes: [],
     },
     components: [
       { component: HeroMetric, slots: ["LargeCard"] },

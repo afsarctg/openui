@@ -11,6 +11,7 @@ import {
   insightSchema,
   itemSchema,
   kpiOutput,
+  ledgerLineSchema,
   rangeSchema,
   seriesSchema,
   targetProgressSchema,
@@ -42,19 +43,6 @@ const device = z
   .default("all")
   .describe("Shopper device (storefront and app only)")
   .meta({ filter: "$device" });
-
-/** A line in a running money breakdown, e.g. gross sales minus discounts. */
-export const ledgerLineSchema = z.object({
-  label: z.string(),
-  value: z.number().describe("Amount, always positive; kind says how it combines"),
-  kind: z
-    .enum(["base", "add", "subtract", "total"])
-    .describe("base starts the breakdown, add and subtract adjust it, total is a subtotal"),
-  previous: z
-    .number()
-    .optional()
-    .describe("The same line in the comparison: the previous period, last year, or the plan"),
-});
 
 export const marketingChannelSchema = z
   .object({
@@ -172,7 +160,9 @@ export const ecommerceTools = [
         .describe("Total sales for the matching days of the comparison"),
       comparisonLabel: z.string(),
       orders: z.array(z.number()),
-      events: z.array(eventSchema).describe("Promotions to shade on the chart"),
+      events: z
+        .array(eventSchema.meta({ opaque: "ChartEvent" }))
+        .describe("Promotions to shade on the chart"),
     }),
   }),
   defineTool({
@@ -180,7 +170,7 @@ export const ecommerceTools = [
     description:
       "Shopify-style total sales breakdown: gross sales, discounts, returns, net sales, shipping charges, taxes, and total sales. Feeds MoneyBreakdown directly.",
     input: z.object({ range: rangeSchema, channel, customerType }),
-    output: z.object({ lines: z.array(ledgerLineSchema) }),
+    output: z.object({ lines: z.array(ledgerLineSchema.meta({ opaque: "LedgerLine" })) }),
   }),
   defineTool({
     name: "get_sales_by",
@@ -196,9 +186,12 @@ export const ecommerceTools = [
       labels: z.array(z.string()),
       totalSales: z.array(z.number()),
       orders: z.array(z.number()),
-      items: z.array(itemSchema),
+      items: z.array(itemSchema.meta({ opaque: "Item" })),
       overTime: z
-        .object({ labels: z.array(z.string()), series: z.array(seriesSchema) })
+        .object({
+          labels: z.array(z.string()),
+          series: z.array(seriesSchema.meta({ opaque: "Series" })),
+        })
         .describe(
           'Sales over time split by the same parts, daily for 7d and 30d, weekly for 90d: ColumnChart(byCategory.overTime.labels, byCategory.overTime.series, "currency", true)',
         ),
@@ -229,7 +222,7 @@ export const ecommerceTools = [
     description:
       "What happened in the period, for any time chart: promotions, launches, stockouts, incidents, and tracking changes (kind measurement, which move metrics without being real). Pass to TrendChart's events.",
     input: z.object({ range: rangeSchema }),
-    output: z.object({ events: z.array(eventSchema) }),
+    output: z.object({ events: z.array(eventSchema.meta({ opaque: "ChartEvent" })) }),
   }),
   defineTool({
     name: "get_promo_impact",
@@ -247,7 +240,7 @@ export const ecommerceTools = [
       labels: z.array(z.string()),
       actual: z.array(z.number()),
       baseline: z.array(z.number()),
-      events: z.array(eventSchema),
+      events: z.array(eventSchema.meta({ opaque: "ChartEvent" })),
       metrics: kpiOutput.metrics,
       summary: z.string(),
     }),
@@ -285,7 +278,7 @@ export const ecommerceTools = [
     output: z.object({
       periodLabel: z.string(),
       comparisonLabel: z.string().describe('What each line is compared with, e.g. "Plan"'),
-      lines: z.array(ledgerLineSchema),
+      lines: z.array(ledgerLineSchema.meta({ opaque: "LedgerLine" })),
       grossMargin: z.string(),
       contributionMargin: z.string(),
       profitPerOrder: z.string(),
@@ -313,14 +306,20 @@ export const ecommerceTools = [
     description:
       "GA4-style purchase journey for the storefront and app: session start, product view, add to cart, begin checkout, purchase, with the previous period and median times. Feeds ConversionFunnel directly.",
     input: z.object({ range: rangeSchema, device }),
-    output: z.object({ steps: z.array(funnelStepSchema), conversionRate: z.string() }),
+    output: z.object({
+      steps: z.array(funnelStepSchema.meta({ opaque: "FunnelStep" })),
+      conversionRate: z.string(),
+    }),
   }),
   defineTool({
     name: "get_checkout_journey",
     description:
       "GA4-style checkout journey: begin checkout, add shipping info, add payment info, purchase, with the previous period. Feeds ConversionFunnel directly.",
     input: z.object({ range: rangeSchema, device }),
-    output: z.object({ steps: z.array(funnelStepSchema), checkoutCompletion: z.string() }),
+    output: z.object({
+      steps: z.array(funnelStepSchema.meta({ opaque: "FunnelStep" })),
+      checkoutCompletion: z.string(),
+    }),
   }),
   defineTool({
     name: "get_customer_kpis",
@@ -362,7 +361,7 @@ export const ecommerceTools = [
     description:
       "How customers progress from their 1st to 5th order over the last 6 months, with the median days between orders and the 6 months before for comparison. Feeds ConversionFunnel directly.",
     input: z.object({}),
-    output: z.object({ steps: z.array(funnelStepSchema) }),
+    output: z.object({ steps: z.array(funnelStepSchema.meta({ opaque: "FunnelStep" })) }),
   }),
   defineTool({
     name: "get_customer_cohorts",
@@ -420,7 +419,7 @@ export const ecommerceTools = [
   defineTool({
     name: "get_inventory_health",
     description:
-      "Inventory KPIs (revenue at risk, ads on low stock) and products to restock: velocity, days of cover, order-by date, open POs, any stockout gap and its cost, and the suggested order, for InventoryAlerts and KpiStrip; every product's health: InventoryHealth(stock.catalog, stock.concentration).",
+      "Inventory KPIs (revenue at risk, ads on low stock) and products to restock: velocity, days of cover, order-by date, open POs, any stockout gap and its cost, and the suggested order, for InventoryAlerts and KpiStrip; every product's health: InventoryHealth(stock.catalog), its concentration line as the card subtitle.",
     input: z.object({ category }),
     output: z.object({
       metrics: kpiOutput.metrics,
@@ -452,9 +451,9 @@ export const ecommerceTools = [
     input: z.object({ range: rangeSchema, category }),
     output: z.object({
       periodLabel: z.string(),
-      lines: z.array(ledgerLineSchema),
+      lines: z.array(ledgerLineSchema.meta({ opaque: "LedgerLine" })),
       metrics: kpiOutput.metrics,
-      reasons: z.array(itemSchema),
+      reasons: z.array(itemSchema.meta({ opaque: "Item" })),
       exchanges: z
         .object({
           category: z.string(),
@@ -463,7 +462,7 @@ export const ecommerceTools = [
         })
         .optional()
         .meta({ opaque: "ExchangeMatrix" }),
-      products: z.array(itemSchema),
+      products: z.array(itemSchema.meta({ opaque: "Item" })),
     }),
   }),
   defineTool({
@@ -516,8 +515,8 @@ export const ecommerceTools = [
       sessionsWeekAgo: z.array(z.number()),
       visitorsNow: z.number(),
       metrics: kpiOutput.metrics,
-      funnel: z.array(funnelStepSchema),
-      products: z.array(itemSchema),
+      funnel: z.array(funnelStepSchema.meta({ opaque: "FunnelStep" })),
+      products: z.array(itemSchema.meta({ opaque: "Item" })),
       hours: z.array(z.string()),
       hourlyToday: z.array(z.number()),
       hourlyYesterday: z.array(z.number()),
@@ -576,10 +575,12 @@ export const ecommerceTools = [
       labels: z.array(z.string()),
       lastYear: z.array(z.number()),
       plan: z.array(z.number()),
-      events: z.array(eventSchema),
+      events: z.array(eventSchema.meta({ opaque: "ChartEvent" })),
       metrics: kpiOutput.metrics,
       orderBy: z.string().describe("The last day to order the extra units"),
-      extraUnits: z.array(itemSchema).describe("Units to buy for the sale, by product, most first"),
+      extraUnits: z
+        .array(itemSchema.meta({ opaque: "Item" }))
+        .describe("Units to buy for the sale, by product, most first"),
     }),
   }),
   defineTool({

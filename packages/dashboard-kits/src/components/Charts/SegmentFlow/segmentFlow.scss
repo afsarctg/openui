@@ -44,18 +44,18 @@
     fill-opacity: 0.32;
 
     &--up {
-      fill: var(--kit-good);
+      fill: var(--kit-up);
     }
     &--down,
     &--out {
-      fill: var(--kit-bad);
+      fill: var(--kit-down);
     }
     &--stay {
       fill: var(--kit-muted-mark);
       fill-opacity: 0.22;
     }
     &--in {
-      fill: var(--kit-s1);
+      fill: var(--kit-o4);
     }
     &--faded {
       opacity: 0.18;

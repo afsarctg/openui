@@ -75,7 +75,7 @@
   margin-left: 22px;
   padding-left: 6px;
   border-radius: 6px;
-  background: color-mix(in oklch, var(--kit-warn) 12%, transparent);
+  background: color-mix(in oklab, var(--kit-warn) 12%, transparent);
   color: var(--kit-ink-2);
 }
 .kit-funnel__note {

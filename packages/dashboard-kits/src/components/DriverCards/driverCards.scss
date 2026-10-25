@@ -113,10 +113,10 @@
   transition: width 0.4s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 .kit-driver--good .kit-driver__bar {
-  background: var(--kit-good);
+  background: var(--kit-up);
 }
 .kit-driver--bad .kit-driver__bar {
-  background: var(--kit-bad);
+  background: var(--kit-down);
 }
 .kit-driver__pct {
   font: 600 11.5px/1 var(--kit-font);

@@ -136,7 +136,7 @@
   display: block;
   height: 6px;
   border-radius: 999px;
-  background: color-mix(in oklch, var(--kit-accent) 10%, var(--kit-card));
+  background: color-mix(in oklab, var(--kit-accent) 10%, var(--kit-card));
   overflow: hidden;
 }
 .kit-segment__fill {
@@ -171,8 +171,8 @@
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  background: color-mix(in oklch, var(--kit-mono) 16%, var(--kit-card));
-  color: color-mix(in oklch, var(--kit-mono) 80%, var(--kit-ink));
+  background: color-mix(in oklab, var(--kit-mono) 16%, var(--kit-card));
+  color: color-mix(in oklab, var(--kit-mono) 80%, var(--kit-ink));
   font: 650 12.5px var(--kit-font);
   letter-spacing: 0.02em;
 }
@@ -501,11 +501,6 @@
   flex-direction: column;
   gap: 10px;
 }
-.kit-stockhealth__lead {
-  margin: 0;
-  font: 400 13px/1.45 var(--kit-font);
-  color: var(--kit-ink-2);
-}
 // ABC class: A carries most of the revenue, so it reads strongest.
 .kit-abc {
   display: inline-grid;
@@ -520,7 +515,7 @@
   color: var(--kit-card);
 }
 .kit-abc--b {
-  background: color-mix(in oklch, var(--kit-accent) 22%, var(--kit-card));
+  background: color-mix(in oklab, var(--kit-accent) 22%, var(--kit-card));
   color: var(--kit-ink);
 }
 .kit-abc--c {

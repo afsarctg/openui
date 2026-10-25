@@ -1,4 +1,4 @@
-import { TODAY } from "../core/sample-data";
+import { DAY, daysAgoOf, TODAY } from "../core/sample-data";
 
 // Relay's calendar: the holiday, the launches, and the tracking and data
 // problems. The population reads its weekly rhythm and the holiday from here,
@@ -21,9 +21,8 @@ export interface ProductEvent {
   anyEventOnly?: boolean;
 }
 
-const DAY = 86_400_000;
-const daysAgo = (month: number, day: number) =>
-  Math.round((TODAY - Date.UTC(2026, month - 1, day)) / DAY);
+/** Days ago of a date this year. */
+const daysAgo = (month: number, day: number) => daysAgoOf(2026, month, day);
 
 export const PRODUCT_EVENTS: ProductEvent[] = [
   {

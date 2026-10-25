@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { formatPercent } from "../../../core/format";
 import { RollingNumber } from "../../RollingNumber";
+import { ChartEmpty } from "../shared/ChartEmpty";
 import { KIT_CHART_PREFIX } from "../utils/constants";
 import { formatValue } from "../utils/format";
 import { goalStatus } from "./goalGeometry";
@@ -20,11 +21,7 @@ const STATUS_CLASS = { good: "positive", warn: "warning", bad: "negative" } as c
 export function GoalPace(props: GoalPaceProps) {
   const g = props.goal;
   if (g.labels.length === 0 || g.cumulative.length === 0 || !(g.goal > 0)) {
-    return (
-      <div className={clsx(`${P} ${P}--empty`, props.className)}>
-        <span className={`${P}-empty-text`}>No goal set for this period</span>
-      </div>
-    );
+    return <ChartEmpty prefix={P} className={props.className} text="No goal set for this period" />;
   }
   return <GoalPaceImpl {...props} />;
 }

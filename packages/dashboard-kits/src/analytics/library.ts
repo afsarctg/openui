@@ -44,11 +44,7 @@ export function createAnalyticsLibrary(base: Library): Library {
     group: {
       name: "Product analytics",
       notes: [
-        'Lead every dashboard with one HeroMetric(kpis.hero, kpis.heroTrend, kpis.metrics, $metric) in a LargeCard; put the supporting KpiStrip(kpis.metrics, $metric) in its own LargeCard row, with RuleChips(kpis.rules). The shared $metric (declare $metric = "") makes each KPI tile a tab that shows its metric in the hero chart.',
-        "Charts: TrendChart for anything over time, ColumnChart for counts per period or stacked composition (negative values draw below the line), BarList for ranked categories, ShareBar for part-to-whole. Prefer them over LineChart, AreaChart, BarChart, and PieChart.",
         "Say how users were counted: put a tool's rule in the card subtitle, and DataStatus(status.items) under the hero.",
-        "To compare plans' retention, use TrendChart with get_retention_curves. FeatureAdoption is the ranked list for a MediumCard; EngagementMatrix needs a LargeCard.",
-        "Put a DashboardCardHeader before each of these components.",
       ],
     },
     components: [

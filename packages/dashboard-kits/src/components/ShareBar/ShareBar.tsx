@@ -3,10 +3,14 @@ import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { formatPercent } from "../../core/format";
 import type { Item, ValueFormat } from "../../core/schemas";
 import { ALL } from "../BarList";
-import { useChartHover, useContainerSize, useIsomorphicLayoutEffect } from "../Charts/hooks";
+import {
+  useChartHover,
+  useContainerSize,
+  useIsomorphicLayoutEffect,
+  useKitPalette,
+} from "../Charts/hooks";
 import { ChartTooltip } from "../Charts/shared";
 import { springPresets, useDataMorph } from "../Charts/shared/spring";
-import { SERIES_COLORS } from "../Charts/utils/constants";
 import { formatValue } from "../Charts/utils/format";
 import { segmentPath, shareAt, shareSpans } from "./shareGeometry";
 
@@ -42,8 +46,10 @@ export function ShareBar({ items: allItems, format, selected, onSelect }: ShareB
   const total = items.reduce((a, i) => a + i.value, 0) || 1;
   const active = onSelect != null && selected != null && selected !== ALL && selected !== "";
   const picked = active ? items.find((i) => i.key === selected) : undefined;
+  // Parts take the theme's chart palette, as OpenUI's own part-to-whole charts do.
+  const palette = useKitPalette(items.length, "pieChartPalette");
   const colors = items.map((item, k) => {
-    const color = SERIES_COLORS[k % SERIES_COLORS.length]!;
+    const color = palette[k]!;
     return picked && item !== picked ? fade(color) : color;
   });
 

@@ -2,9 +2,10 @@ import clsx from "clsx";
 import { scalePoint } from "d3-scale";
 import { useCallback, useId, useMemo, useRef, type ReactNode } from "react";
 import { changeTone, formatChange } from "../../../core/format";
-import { useChartHover, useContainerSize, useSeriesFocus } from "../hooks";
+import { useChartHover, useContainerSize, useKitPalette, useSeriesFocus } from "../hooks";
 import { ChartCrosshair, ChartLegend, ChartTooltip, type LegendGuide } from "../shared";
-import { colorSeries } from "../shared/seriesColors";
+import { ChartEmpty } from "../shared/ChartEmpty";
+import { colorSeries, comparisonInSeriesColor, paletteCount } from "../shared/seriesColors";
 import { DEFAULT_TREND_HEIGHT, KIT_CHART_PREFIX, X_LABEL_SPACING } from "../utils/constants";
 import { formatAxis, formatValue } from "../utils/format";
 import { findNearestDataIndex } from "../utils/mouseUtils";
@@ -29,11 +30,7 @@ export function TrendChart(props: TrendChartProps) {
   const hasData =
     props.labels.length > 0 && props.series.some((s) => s.values.some(Number.isFinite));
   if (!hasData) {
-    return (
-      <div className={clsx(`${P} ${P}--empty`, props.className)}>
-        <span className={`${P}-empty-text`}>No data available</span>
-      </div>
-    );
+    return <ChartEmpty prefix={P} className={props.className} />;
   }
   return <TrendChartImpl {...props} />;
 }
@@ -65,7 +62,12 @@ function TrendChartImpl({
   const focus = useSeriesFocus();
   const gradientId = `${P}-g${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
-  const series = useMemo(() => colorSeries(seriesProp.slice(0, 4)), [seriesProp]);
+  const drawn = useMemo(() => seriesProp.slice(0, 4), [seriesProp]);
+  const palette = useKitPalette(paletteCount(drawn), "lineChartPalette");
+  const series = useMemo(
+    () => comparisonInSeriesColor(colorSeries(drawn, palette), drawn),
+    [drawn, palette],
+  );
   const variant = variantProp ?? (series.length > 2 ? "line" : "area");
   const n = labels.length;
   const width = Math.max(size.width, MIN_WIDTH);
@@ -165,8 +167,7 @@ function TrendChartImpl({
           items={series.map((s) => ({
             name: s.name,
             color: s.color,
-            dashed: s.dashed,
-            dotted: s.emphasis === "muted",
+            dashed: s.dashed || s.emphasis === "muted",
           }))}
           guides={legendGuides}
           {...focus.legend}
@@ -222,8 +223,6 @@ function TrendChartImpl({
             series={series}
             primary={primary}
             comparison={comparison}
-            aheadTone={tones?.ahead}
-            behindTone={tones?.behind}
             area={variant === "area"}
             partial={partial}
             hasTarget={target != null}
@@ -286,8 +285,7 @@ function TrendChartImpl({
               color: s.color,
               name: s.name,
               value: formatValue(s.values[hovered]!, format),
-              dashed: s.dashed,
-              dotted: s.emphasis === "muted",
+              dashed: s.dashed || s.emphasis === "muted",
             }))}
             footer={gapFooter}
           />

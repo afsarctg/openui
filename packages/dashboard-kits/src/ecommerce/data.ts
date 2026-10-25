@@ -3,25 +3,26 @@ import {
   confidence,
   contributions,
   mixAndRate,
+  periodChangeInsight,
   walk as walkOf,
   type RatioSegment,
   type Segment,
 } from "../core/explain";
 import { formatCurrency, formatNumber, formatPoints } from "../core/format";
-import type { MetricDefinition } from "../core/metrics";
+import { metricKpis, type MetricDefinition } from "../core/metrics";
 import {
   AS_OF,
   between,
   bucket,
+  calendarEvents,
   changeText,
   dailySeries,
   dateLabel,
   dayLabels,
   dayOfWeek,
   downsample,
-  eventSpan,
-  kpi,
   mean,
+  PAST_WINDOWS,
   periodLabel,
   random,
   RANGE_DAYS,
@@ -57,7 +58,6 @@ type Input<N extends Tools[number]["name"]> = z.output<
 >;
 type Channel = "online" | "app" | "amazon";
 
-/** Enough days for a 90-day period and the same 90 days a year earlier. */
 /**
  * A 90-day period and the one before it, plus the same days a year earlier
  * (for last-year comparisons and for customers lapsing 52 weeks after their
@@ -2289,20 +2289,7 @@ function ncpa(range: Range, offset = 0) {
 }
 
 /** A KPI for a registered metric: its label, good direction, and definition come from METRICS. */
-function metric(
-  id: MetricId,
-  current: number,
-  previous: number,
-  format: (v: number) => string,
-  options: Parameters<typeof kpi>[4] = {},
-): Kpi {
-  const { label, goodDirection } = METRICS[id] as MetricDefinition;
-  return kpi(label, current, previous, format, {
-    goodDirection,
-    definition: definitionOf(id),
-    ...options,
-  });
-}
+const metric = metricKpis(METRICS as Record<MetricId, MetricDefinition>);
 
 /** A daily series against the same days of the previous period, bucketed by week for 90d. */
 function trendOf(
@@ -2332,12 +2319,7 @@ const roundTo = (value: number, digits: number) => {
 };
 
 /** The store's calendar as chart events for the period, each with its kind. */
-function eventsFor(range: Range): ChartEvent[] {
-  return STORE_EVENTS.flatMap((e) => {
-    const span = eventSpan(range, e.label, e.from, e.to, e.detail);
-    return span ? [{ ...span, kind: e.kind }] : [];
-  });
-}
+const eventsFor = (range: Range): ChartEvent[] => calendarEvents(range, STORE_EVENTS);
 
 /** Ranked items with their share of the total and change against the previous period. */
 function items(
@@ -2566,9 +2548,6 @@ function usualRange(
     periods,
   };
 }
-
-/** How many earlier windows of this length to judge a change against (our rule). */
-const PAST_WINDOWS: Record<Range, number> = { "7d": 8, "30d": 6, "90d": 3, mtd: 8 };
 
 /** The change between each earlier window and the one before it. */
 function pastChanges(metric: WhyMetric, chs: Channel[], range: Range): number[] {
@@ -4070,18 +4049,13 @@ export const ecommerceHandlers: Record<string, (args: any) => unknown> = {
     }
 
     const sales = why("total_sales");
-    const driver = sales.drivers[0];
-    insights.push({
-      // A change inside the normal range is a note, not news.
-      tone:
-        sales.confidence.level === "Low" ? "info" : sales.tone === "bad" ? "negative" : "positive",
-      kind: "period_change",
-      title: `Total sales ${sales.change >= 0 ? "up" : "down"} ${Math.abs(sales.change).toFixed(1)}% against ${compare === "previous_period" ? `the prior ${days} days` : sales.comparisonLabel.toLowerCase()}`,
-      detail: driver
-        ? `${driver.name} (${driver.dimension.toLowerCase()}) moved most: ${driver.delta}, ${Math.round(Math.abs(driver.share) * 100)}% of the change.`
-        : `${sales.confidence.note}, so no single cause stands out.`,
-      metric: sales.value,
-    });
+    insights.push(
+      periodChangeInsight(
+        sales,
+        "Total sales",
+        `against ${compare === "previous_period" ? `the prior ${days} days` : sales.comparisonLabel.toLowerCase()}`,
+      ),
+    );
 
     const runner = inventory().find((i) => i.sku === "FTW-TRL-01")!;
     const bestseller = productSales(range, channel).sort((a, b) => b.revenue - a.revenue)[0];

@@ -24,6 +24,13 @@ export interface ProfitWaterfallProps {
   zero?: boolean;
   /** Plot height in px. Default 240. */
   height?: number;
+  /**
+   * Grow the columns to the card's height when a taller card beside it
+   * stretches the row, up to `maxHeight`. Rows (narrow cards) keep their size.
+   */
+  fill?: boolean;
+  /** The tallest a filling plot grows, in px. */
+  maxHeight?: number;
   /** Bars rise in on first show and glide when the data changes. Default true. */
   isAnimationActive?: boolean;
   className?: string;

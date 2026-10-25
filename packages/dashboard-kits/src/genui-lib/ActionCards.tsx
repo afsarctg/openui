@@ -16,85 +16,109 @@ const KIND_LABEL = {
   change: "Change",
 } as const;
 
+/** Open actions shown before "Show more": enough to decide on, short enough to sit beside other cards. */
+const SHOWN = 3;
+
 function ActionList({ actions }: { actions: Action[] }) {
   const [decided, setDecided] = useState<Record<string, "approved" | "dismissed">>({});
   const [log, setLog] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState(false);
+  const time = () => new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   const decide = (action: Action, choice: "approved" | "dismissed") => {
     setDecided((d) => ({ ...d, [action.id]: choice }));
-    const time = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
     setLog((l) => [
       choice === "approved" && action.effect
-        ? `${time} · Approved: ${action.effect}`
-        : `${time} · ${choice === "approved" ? "Approved" : "Dismissed"}: ${action.title}`,
+        ? `${time()} · Approved: ${action.effect}`
+        : `${time()} · ${choice === "approved" ? "Approved" : "Dismissed"}: ${action.title}`,
       ...l,
     ]);
   };
+  const undo = (action: Action) => {
+    setDecided(({ [action.id]: _undone, ...rest }) => rest);
+    setLog((l) => [`${time()} · Undid: ${action.title}`, ...l]);
+  };
+
+  // Open actions first, in rank order, then the decided ones, each on one line.
+  const open = actions.filter((a) => !decided[a.id]);
+  const done = actions.filter((a) => decided[a.id]);
+  const shown = expanded ? open : open.slice(0, SHOWN);
+  const hidden = open.length - shown.length;
+  const approved = done.filter((a) => decided[a.id] === "approved").length;
+
   return (
     <div className="kit-actions">
       <ul className="kit-actions__list">
-        {actions.map((a) => {
-          const state = decided[a.id];
-          return (
-            <li key={a.id} className={`kit-action${state ? ` kit-action--${state}` : ""}`}>
-              <div className="kit-action__body">
-                <span className="kit-action__title">
-                  {a.kind && (
-                    <span className={`kit-action__kind kit-action__kind--${a.kind}`}>
-                      {KIND_LABEL[a.kind]}
-                    </span>
-                  )}
-                  {a.title}
-                </span>
-                <span className="kit-action__detail">{a.detail}</span>
-                <span className="kit-action__meta">
-                  <span className="kit-action__impact">{a.impactText}</span>
-                  <span className="kit-muted">
-                    {a.owner} · {a.effort} effort
+        {shown.map((a) => (
+          <li key={a.id} className="kit-action">
+            <div className="kit-action__body">
+              <span className="kit-action__title">
+                {a.kind && (
+                  <span className={`kit-action__kind kit-action__kind--${a.kind}`}>
+                    {KIND_LABEL[a.kind]}
                   </span>
-                </span>
-              </div>
-              <div className="kit-action__buttons">
-                {state ? (
-                  <span className="kit-action__done">
-                    {state === "approved" ? "Approved" : "Dismissed"}
-                  </span>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      className="kit-action__approve"
-                      onClick={() => decide(a, "approved")}
-                    >
-                      Approve
-                    </button>
-                    <button
-                      type="button"
-                      className="kit-action__dismiss"
-                      onClick={() => decide(a, "dismissed")}
-                    >
-                      Dismiss
-                    </button>
-                  </>
                 )}
-              </div>
-            </li>
-          );
-        })}
+                {a.title}
+              </span>
+              <span className="kit-action__detail" title={a.detail}>
+                {a.detail}
+              </span>
+              <span className="kit-action__meta">
+                <span className="kit-action__impact">{a.impactText}</span>
+                <span className="kit-muted">
+                  {a.owner} · {a.effort} effort
+                </span>
+              </span>
+            </div>
+            <div className="kit-action__buttons">
+              <button
+                type="button"
+                className="kit-action__approve"
+                onClick={() => decide(a, "approved")}
+              >
+                Approve
+              </button>
+              <button
+                type="button"
+                className="kit-action__dismiss"
+                onClick={() => decide(a, "dismissed")}
+              >
+                Dismiss
+              </button>
+            </div>
+          </li>
+        ))}
+        {done.map((a) => (
+          <li key={a.id} className={`kit-action kit-action--decided kit-action--${decided[a.id]}`}>
+            <span className="kit-action__done">
+              <span aria-hidden>{decided[a.id] === "approved" ? "✓" : "–"}</span>{" "}
+              {decided[a.id] === "approved" ? "Approved" : "Dismissed"}
+            </span>
+            <span className="kit-action__done-title">{a.title}</span>
+            <button type="button" className="kit-action__undo" onClick={() => undo(a)}>
+              Undo
+            </button>
+          </li>
+        ))}
       </ul>
-      <div className="kit-actions__log" aria-live="polite">
-        <span className="kit-actions__log-title">Action log</span>
-        {log.length === 0 ? (
-          <span className="kit-muted">
-            Nothing approved yet. This demo only records the decision; nothing is sent.
-          </span>
-        ) : (
-          <ul>
-            {log.map((line) => (
-              <li key={line}>{line}</li>
+      {hidden > 0 && (
+        <button type="button" className="kit-actions__more" onClick={() => setExpanded(true)}>
+          Show {hidden} more
+        </button>
+      )}
+      {log.length === 0 ? (
+        <p className="kit-actions__note">Decisions are recorded here only; nothing is sent.</p>
+      ) : (
+        <details className="kit-actions__log">
+          <summary>
+            {approved} approved · {done.length - approved} dismissed · nothing is sent
+          </summary>
+          <ul aria-live="polite">
+            {log.map((line, k) => (
+              <li key={`${k}-${line}`}>{line}</li>
             ))}
           </ul>
-        )}
-      </div>
+        </details>
+      )}
     </div>
   );
 }

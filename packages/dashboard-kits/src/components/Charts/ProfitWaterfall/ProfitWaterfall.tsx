@@ -2,8 +2,9 @@ import clsx from "clsx";
 import { scaleBand, scaleLinear } from "d3-scale";
 import { memo, useCallback, useMemo, useRef } from "react";
 import { useChartHover, useContainerSize, useIsomorphicLayoutEffect } from "../hooks";
+import { ChartEmpty } from "../shared/ChartEmpty";
 import { FadeFollower, springPresets, useDataMorph } from "../shared/spring";
-import { KIT_CHART_PREFIX } from "../utils/constants";
+import { FILL_MAX_HEIGHT, KIT_CHART_PREFIX } from "../utils/constants";
 import { formatAxis, formatTicks, formatValue } from "../utils/format";
 import { findBandIndex } from "../utils/mouseUtils";
 import type { ProfitWaterfallProps, WaterfallStep } from "./types";
@@ -36,11 +37,7 @@ const LABEL_MIN_BAND = 46;
  */
 export function ProfitWaterfall(props: ProfitWaterfallProps) {
   if (props.steps.length === 0) {
-    return (
-      <div className={clsx(`${P} ${P}--empty`, props.className)}>
-        <span className={`${P}-empty-text`}>No data available</span>
-      </div>
-    );
+    return <ChartEmpty prefix={P} className={props.className} />;
   }
   return <ProfitWaterfallImpl {...props} />;
 }
@@ -57,14 +54,21 @@ function ProfitWaterfallImpl({
   format = "currency",
   zero = true,
   height: columnHeight = DEFAULT_HEIGHT,
+  fill: fillProp = false,
+  maxHeight = FILL_MAX_HEIGHT,
   isAnimationActive = true,
   className,
 }: ProfitWaterfallProps) {
   const [frameRef, size] = useContainerSize<HTMLDivElement>(640, columnHeight);
   const n = steps.length;
   const rows = size.width < ROWS_BELOW;
+  const fill = fillProp && !rows;
   const width = size.width;
-  const height = rows ? n * ROW_HEIGHT + ROW_MARGIN.top + ROW_MARGIN.bottom : columnHeight;
+  const height = rows
+    ? n * ROW_HEIGHT + ROW_MARGIN.top + ROW_MARGIN.bottom
+    : fill
+      ? Math.min(maxHeight, Math.max(columnHeight, size.height))
+      : columnHeight;
   // Rows: the step names take up to 40% of the width on the left.
   const margin = rows
     ? { ...ROW_MARGIN, left: Math.min(150, Math.round(width * 0.4)) }
@@ -143,7 +147,10 @@ function ProfitWaterfallImpl({
   const start = (band(shown) ?? 0) - pad;
 
   return (
-    <div className={clsx(P, rows && `${P}--rows`, className)}>
+    <div
+      className={clsx(P, rows && `${P}--rows`, fill && `${P}--fill`, className)}
+      data-kit-fill={fill ? "" : undefined}
+    >
       <div className={`${P}-top`} aria-live="polite">
         {step ? (
           <span className={`${P}-readout`}>
@@ -175,7 +182,15 @@ function ProfitWaterfallImpl({
       </div>
       <div
         ref={frameRef}
-        className={`${P}-frame`}
+        className={clsx(`${P}-frame`, fill && `${P}-frame--fill`)}
+        style={
+          fill
+            ? {
+                minHeight: columnHeight,
+                maxHeight: Number.isFinite(maxHeight) ? maxHeight : undefined,
+              }
+            : undefined
+        }
         tabIndex={0}
         role="img"
         aria-label={`${steps[0]!.label} ${signed(steps[0]!, steps[0]!.value, format)} to ${steps[n - 1]!.label} ${signed(steps[n - 1]!, steps[n - 1]!.value, format)}, in ${n} steps. Use the arrow keys to read each step.`}

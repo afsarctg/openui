@@ -99,7 +99,7 @@
   left: 4px;
 }
 .kit-kpi--tab[aria-pressed="true"] {
-  background: color-mix(in oklch, var(--kit-accent) 7%, var(--kit-card));
+  background: color-mix(in oklab, var(--kit-accent) 7%, var(--kit-card));
 }
 .kit-kpi--tab[aria-pressed="true"]::before {
   transform: scaleX(1);

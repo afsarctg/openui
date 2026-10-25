@@ -1,6 +1,7 @@
 import { useIsQueryLoading, useIsStreaming } from "@openuidev/react-lang";
 import { useEffect, useState } from "react";
 import { EmptyState, Skeleton, type SkeletonKind } from "../components/States";
+import { useRowBalance } from "./rowBalance";
 
 /**
  * What a component without data shows: a skeleton while the dashboard streams
@@ -15,6 +16,7 @@ export function Pending({
   rows?: number;
   empty?: string;
 }) {
+  useRowBalance();
   const loading = useIsQueryLoading();
   const streaming = useIsStreaming();
   const [settled, setSettled] = useState(false);

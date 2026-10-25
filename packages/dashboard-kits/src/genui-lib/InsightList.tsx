@@ -9,7 +9,7 @@ import { Pending } from "./Pending";
 export const InsightList = defineComponent({
   name: "InsightList",
   description:
-    "Automatically detected changes worth attention, each with a tone (positive, negative, warning, info), a headline, an explanation, and a key figure. Pass an insights tool's insights directly: InsightList(insights.insights). Optional limit for a MediumCard.",
+    "Automatically detected changes worth attention, each with a tone (positive, negative, warning, info), a headline, an explanation, and a key figure. Pass an insights tool's insights directly, with a limit: InsightList(insights.insights, 4).",
   props: z.object({
     insights: z.array(passed("An insight from an insights tool")).default([]),
     limit: z.number().optional(),

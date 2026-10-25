@@ -1,4 +1,5 @@
-import type { Definition } from "./schemas";
+import { kpi } from "./sample-data";
+import type { Definition, Kpi } from "./schemas";
 
 // The shape of a kit's metric registry: every metric its tools return, defined
 // once. Tools attach the definition to each KPI (shown when hovering its
@@ -28,4 +29,25 @@ export function glossary(metrics: Record<string, MetricDefinition>): string {
     if (glossary !== false && !lines.has(label)) lines.set(label, `${label} = ${formula}`);
   }
   return [...lines.values()].join("; ");
+}
+
+/**
+ * A kit's KPI builder: label, good direction, and definition come from its
+ * metric registry, so a tool only passes the values and options.
+ */
+export function metricKpis<Id extends string>(metrics: Record<Id, MetricDefinition>) {
+  return (
+    id: Id,
+    current: number,
+    previous: number,
+    format: (v: number) => string,
+    options: Parameters<typeof kpi>[4] = {},
+  ): Kpi => {
+    const m = metrics[id];
+    return kpi(m.label, current, previous, format, {
+      goodDirection: m.goodDirection,
+      definition: definitionOf(m),
+      ...options,
+    });
+  };
 }

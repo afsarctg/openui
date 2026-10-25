@@ -25,7 +25,12 @@
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: 6px;
-  background: color-mix(in oklch, var(--kit-accent) 16%, var(--kit-card));
+  background: color-mix(in oklab, var(--kit-ink) 7%, var(--kit-card));
+}
+// One measure, one colour, and the accent on the leader only: neutral bars
+// rank the rest, so the top item reads first.
+.kit-barlist li:first-child .kit-barlist__fill {
+  background: color-mix(in oklab, var(--kit-accent) 22%, var(--kit-card));
 }
 // Bars grow in one after another when the list first shows, and ease to new
 // lengths when a filter changes them.
@@ -38,7 +43,7 @@
   }
 }
 .kit-barlist__row:hover .kit-barlist__fill {
-  background: color-mix(in oklch, var(--kit-accent) 26%, var(--kit-card));
+  background: color-mix(in oklab, var(--kit-accent) 26%, var(--kit-card));
 }
 .kit-barlist__name {
   position: relative;
@@ -91,7 +96,7 @@
 
 .kit-barlist__button[aria-pressed="true"] .kit-barlist__fill,
 .kit-barlist__button:hover .kit-barlist__fill {
-  background: color-mix(in oklch, var(--kit-accent) 30%, var(--kit-card));
+  background: color-mix(in oklab, var(--kit-accent) 30%, var(--kit-card));
 }
 
 .kit-barlist__button[aria-pressed="true"] .kit-barlist__name {

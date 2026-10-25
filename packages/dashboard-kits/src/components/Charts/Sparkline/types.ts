@@ -3,7 +3,10 @@ import type { Tone } from "../../../core/format";
 export interface SparklineProps {
   /** Recent values, oldest first. Two or more draw a line. */
   values: number[];
-  /** Whether the change is good, bad, or neither for the metric; colors the line. */
+  /**
+   * @deprecated Ignored: sparklines always draw in the accent, and the delta
+   * beside one says whether the change is good.
+   */
   tone?: Tone;
   /** Height in px. The width fills the container. Default 36. */
   height?: number;

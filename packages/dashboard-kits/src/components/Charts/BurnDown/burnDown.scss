@@ -41,8 +41,8 @@
 }
 .#{brand.$prefix}-burn--bad .#{brand.$prefix}-burn-used,
 .#{brand.$prefix}-burn--bad .#{brand.$prefix}-burn-projected {
-  stroke: var(--kit-bad);
+  stroke: var(--kit-down);
 }
 .#{brand.$prefix}-burn--bad .#{brand.$prefix}-burn-dot {
-  fill: var(--kit-bad);
+  fill: var(--kit-down);
 }

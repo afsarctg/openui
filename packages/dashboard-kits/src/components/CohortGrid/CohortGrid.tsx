@@ -3,7 +3,7 @@ import type { CohortRow } from "../../core/schemas";
 
 /** A single-hue sequential fill: the accent mixed into the card, so low values recede in both modes. */
 export const heat = (intensity: number) =>
-  `color-mix(in oklch, var(--kit-accent) ${Math.round(6 + Math.max(0, Math.min(1, intensity)) * 90)}%, var(--kit-card))`;
+  `color-mix(in oklab, var(--kit-accent) ${Math.round(6 + Math.max(0, Math.min(1, intensity)) * 90)}%, var(--kit-card))`;
 
 export interface CohortGridProps {
   cohorts: CohortRow[];

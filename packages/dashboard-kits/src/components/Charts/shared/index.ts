@@ -6,5 +6,5 @@ export { ChartLegend } from "./ChartLegend/ChartLegend";
 export type { LegendGuide, LegendItem } from "./ChartLegend/ChartLegend";
 export { ChartTooltip } from "./ChartTooltip/ChartTooltip";
 export type { TooltipRow } from "./ChartTooltip/ChartTooltip";
-export { colorSeries } from "./seriesColors";
+export { colorSeries, paletteCount } from "./seriesColors";
 export type { ColoredSeries } from "./seriesColors";

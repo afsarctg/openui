@@ -240,6 +240,7 @@ code {
 .canvas {
   min-height: 240px;
 }
+
 .canvas--empty {
   display: grid;
   place-items: center;

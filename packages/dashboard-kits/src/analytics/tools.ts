@@ -212,8 +212,8 @@ export const analyticsTools = [
     input: z.object({ range: rangeSchema }),
     output: z.object({
       metrics: kpiOutput.metrics,
-      funnel: z.array(funnelStepSchema),
-      trials: z.array(itemSchema),
+      funnel: z.array(funnelStepSchema.meta({ opaque: "FunnelStep" })),
+      trials: z.array(itemSchema.meta({ opaque: "Item" })),
       paywalls: z.array(paywallSchema),
       labels: z.array(z.string()),
       freeToPaid: z.array(z.number()),
@@ -260,7 +260,7 @@ export const analyticsTools = [
       actual: z.array(z.number()),
       threshold: z.array(z.number()),
       format: z.enum(["number", "percent"]),
-      events: z.array(eventSchema),
+      events: z.array(eventSchema.meta({ opaque: "ChartEvent" })),
       days: z.array(trackerItemSchema),
       fired: z.number(),
       rule: z.string(),
@@ -272,7 +272,7 @@ export const analyticsTools = [
     description:
       "Launches, holidays, and tracking changes in the period. Pass to TrendChart's events.",
     input: z.object({ range: rangeSchema, platform }),
-    output: z.object({ events: z.array(eventSchema) }),
+    output: z.object({ events: z.array(eventSchema.meta({ opaque: "ChartEvent" })) }),
   }),
   defineTool({
     name: "get_data_status",
@@ -310,7 +310,7 @@ export const analyticsTools = [
       dau: z.array(z.number()),
       wau: z.array(z.number()),
       mau: z.array(z.number()),
-      events: z.array(eventSchema),
+      events: z.array(eventSchema.meta({ opaque: "ChartEvent" })),
       rule,
     }),
   }),
@@ -343,7 +343,10 @@ export const analyticsTools = [
       resurrected: z.array(z.number()).optional(),
       cameBack: z.array(z.number()).optional().describe("Reactivated + resurrected"),
       atRiskWau: z.array(z.number()).optional().describe("Negative: away 1–6 days"),
-      rates: z.array(itemSchema).optional().describe("Each state's daily return rate, percent"),
+      rates: z
+        .array(itemSchema.meta({ opaque: "Item" }))
+        .optional()
+        .describe("Each state's daily return rate, percent"),
       sensitivity: z
         .array(itemSchema)
         .optional()
@@ -373,7 +376,7 @@ export const analyticsTools = [
         .describe("Users, or new workspaces (team activation: 3+ members active in 14 days)"),
     }),
     output: z.object({
-      steps: z.array(funnelStepSchema),
+      steps: z.array(funnelStepSchema.meta({ opaque: "FunnelStep" })),
       activationRate: z.string(),
       validity: z.object({
         activated: z.string(),
@@ -382,8 +385,8 @@ export const analyticsTools = [
         pass: z.boolean(),
         note: z.string(),
       }),
-      platformUsers: z.array(itemSchema),
-      platformActivation: z.array(itemSchema),
+      platformUsers: z.array(itemSchema.meta({ opaque: "Item" })),
+      platformActivation: z.array(itemSchema.meta({ opaque: "Item" })),
     }),
   }),
   defineTool({
@@ -527,8 +530,8 @@ export const analyticsTools = [
       labels: z.array(z.string()),
       signups: z.array(z.number()),
       activationRate: z.array(z.number()),
-      items: z.array(itemSchema),
-      activation: z.array(itemSchema),
+      items: z.array(itemSchema.meta({ opaque: "Item" })),
+      activation: z.array(itemSchema.meta({ opaque: "Item" })),
     }),
   }),
   defineTool({
@@ -578,7 +581,10 @@ export const analyticsTools = [
       metrics: kpiOutput.metrics,
       accounts: z.array(accountSchema),
       distribution: z
-        .object({ labels: z.array(z.string()), series: z.array(seriesSchema) })
+        .object({
+          labels: z.array(z.string()),
+          series: z.array(seriesSchema.meta({ opaque: "Series" })),
+        })
         .describe("Health score bands by zone, for a stacked ColumnChart"),
       backTest: z
         .array(itemSchema)
@@ -598,7 +604,7 @@ export const analyticsTools = [
     output: z.object({
       labels: z.array(z.string()),
       active: z.array(z.number()),
-      seats: z.array(funnelStepSchema),
+      seats: z.array(funnelStepSchema.meta({ opaque: "FunnelStep" })),
       metrics: kpiOutput.metrics,
       rule: z.string(),
     }),

@@ -1,29 +1,42 @@
 import type { z } from "zod/v4";
-import { confidence, contributions, mixAndRate, walk as walkOf } from "../core/explain";
-import { formatCurrency, formatDuration, formatNumber, formatPoints } from "../core/format";
-import type { MetricDefinition } from "../core/metrics";
+import {
+  confidence,
+  contributions,
+  mixAndRate,
+  periodChangeInsight,
+  walk as walkOf,
+} from "../core/explain";
+import {
+  formatChange,
+  formatCurrency,
+  formatDuration,
+  formatNumber,
+  formatPoints,
+} from "../core/format";
+import { metricKpis, type MetricDefinition } from "../core/metrics";
 import {
   AS_OF,
   between,
   bucket,
+  calendarEvents,
   dailySeries,
   dateLabel,
   dayLabels,
   dayOfWeek,
-  eventSpan,
-  kpi,
+  daysAgoOf,
   mean,
+  PAST_WINDOWS,
   periodLabel,
   random,
   RANGE_DAYS,
   round,
   sum,
 } from "../core/sample-data";
-import type { ChartEvent, Driver, Insight, Item, Kpi, Range, Why } from "../core/schemas";
+import type { ChartEvent, Driver, Insight, Item, Range, Why } from "../core/schemas";
 import { deliveries, nOfM, runsOf } from "./alerts";
 import { CHECKLIST_SHIPPED, dayFactor, iosDuplicates, PRODUCT_EVENTS } from "./calendar";
 import { guardrailLight, liftOf, sampleRatio } from "./experiments";
-import { definitionOf, METRICS, type MetricId } from "./metrics";
+import { METRICS, type MetricId } from "./metrics";
 import { knee, MAX_REACH, MIN_REACH, score, tableFor } from "./moments";
 import {
   addPopulations,
@@ -1293,11 +1306,6 @@ function commitSummary(commits: ReturnType<typeof buildCommits>) {
 
 // ── Weekly review (6-12) ────────────────────────────────────────────────────
 
-const DAY_MS = 86_400_000;
-/** Days ago of a calendar date. */
-const agoOf = (year: number, month: number, day: number) =>
-  Math.round((Date.UTC(2026, 9, 10) - Date.UTC(year, month, day)) / DAY_MS);
-
 interface ReviewMetric {
   key: "wau" | "signups" | "activation" | "stickiness" | "mrr";
   label: string;
@@ -1317,8 +1325,8 @@ function mrrOn(history: RevenueMonth[], ago: number) {
   const lastIndex = history.length - 1;
   for (let k = lastIndex; k >= 0; k--) {
     const monthsBack = lastIndex - k;
-    const start = agoOf(2026, 8 - monthsBack, 1);
-    const end = agoOf(2026, 9 - monthsBack, 0);
+    const start = daysAgoOf(2026, 9 - monthsBack, 1);
+    const end = daysAgoOf(2026, 10 - monthsBack, 0);
     if (ago <= start && ago >= end) {
       const m = history[k]!;
       const progress = (start - ago + 1) / (start - end + 1);
@@ -1392,8 +1400,8 @@ function weeklyReview() {
   });
   const months = Array.from({ length: 12 }, (_, k) => {
     const back = 11 - k;
-    const from = agoOf(2026, 8 - back, 1);
-    const to = agoOf(2026, 9 - back, 0);
+    const from = daysAgoOf(2026, 9 - back, 1);
+    const to = daysAgoOf(2026, 10 - back, 0);
     const label = new Date(Date.UTC(2026, 8 - back, 1)).toLocaleDateString("en-US", {
       month: "short",
       timeZone: "UTC",
@@ -1457,10 +1465,10 @@ function weeklyReview() {
             ? "No plan"
             : rate
               ? `${formatPoints(latest - planned)} vs plan`
-              : `${formatChangeText(pct(latest, planned))} vs plan`,
+              : `${formatChange(pct(latest, planned))} vs plan`,
         vsLastYear: rate
           ? `${formatPoints(latest - lastYear)} vs last year`
-          : `${formatChangeText(pct(latest, lastYear))} vs last year`,
+          : `${formatChange(pct(latest, lastYear))} vs last year`,
         status: offPlan || unusual ? ("exception" as const) : ("ok" as const),
         // Every review metric is better higher: ahead of plan or above its range is good news.
         good: offPlan ? miss > 0 : latest > avg,
@@ -1477,8 +1485,6 @@ function weeklyReview() {
     }),
   };
 }
-
-const formatChangeText = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}%`;
 
 /**
  * A known cause for a metric's latest week, matched to what can move it:
@@ -1958,33 +1964,17 @@ function lifecycleStates(platform: string, plan: string) {
   };
 }
 
-/** How many earlier windows of this length to judge a change against (our rule). */
-const PAST_WINDOWS: Record<Range, number> = { "7d": 8, "30d": 6, "90d": 3, mtd: 8 };
-
 /** A KPI for a registered metric: label, direction, and definition from METRICS. */
-function metric(
-  id: MetricId,
-  current: number,
-  previous: number,
-  format: (v: number) => string,
-  options: Parameters<typeof kpi>[4] = {},
-): Kpi {
-  const { label, goodDirection } = METRICS[id] as MetricDefinition;
-  return kpi(label, current, previous, format, {
-    goodDirection,
-    definition: definitionOf(id),
-    ...options,
-  });
-}
+const metric = metricKpis(METRICS as Record<MetricId, MetricDefinition>);
 
-/** The calendar as chart events for the period, each with its kind. */
-function eventsFor(range: Range, platform = "all"): ChartEvent[] {
-  return PRODUCT_EVENTS.flatMap((e) => {
-    if (e.platforms && platform !== "all" && !e.platforms.includes(platform as Platform)) return [];
-    const span = eventSpan(range, e.label, e.from, e.to, e.detail);
-    return span ? [{ ...span, kind: e.kind }] : [];
-  });
-}
+/** The calendar as chart events for the period, on the platform filtered to. */
+const eventsFor = (range: Range, platform = "all"): ChartEvent[] =>
+  calendarEvents(
+    range,
+    PRODUCT_EVENTS.filter(
+      (e) => !e.platforms || platform === "all" || e.platforms.includes(platform as Platform),
+    ),
+  );
 
 /** One line naming the active rule, for the card that shows the numbers. */
 const ruleFor = (active: Active, window: string) =>
@@ -2976,16 +2966,7 @@ export const analyticsHandlers: Record<string, (args: any) => unknown> = {
       explainAnalytics({ metric, range, platform, plan, active: "core" });
 
     const wau = why("wau");
-    const top = wau.drivers[0];
-    insights.push({
-      tone: wau.confidence.level === "Low" ? "info" : wau.tone === "bad" ? "negative" : "positive",
-      kind: "period_change",
-      title: `Weekly active users ${wau.change >= 0 ? "up" : "down"} ${Math.abs(wau.change).toFixed(1)}% on the prior ${days} days`,
-      detail: top
-        ? `${top.name} (${top.dimension.toLowerCase()}) moved most: ${top.delta}, ${Math.round(Math.abs(top.share) * 100)}% of the change.`
-        : `${wau.confidence.note}, so no single cause stands out.`,
-      metric: wau.value,
-    });
+    insights.push(periodChangeInsight(wau, "Weekly active users", `on the prior ${days} days`));
 
     const activation = why("activation");
     if (activation.confidence.level !== "Low") {

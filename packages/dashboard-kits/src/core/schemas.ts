@@ -221,11 +221,13 @@ export const whySchema = z.object({
   delta: z.string().describe('Signed change, e.g. "−$22.7K"'),
   change: z.number().describe("Percent change against the comparison"),
   tone: z.enum(["good", "bad", "neutral"]),
-  confidence: z.object({
-    level: z.enum(["High", "Medium", "Low"]),
-    z: z.number(),
-    note: z.string(),
-  }),
+  confidence: z
+    .object({
+      level: z.enum(["High", "Medium", "Low"]),
+      z: z.number(),
+      note: z.string(),
+    })
+    .meta({ opaque: "Confidence" }),
   summary: z
     .string()
     .describe("One or two sentences, written from the numbers, safe to show as is"),
@@ -272,6 +274,19 @@ export const goalSchema = z.object({
     ),
   range: z.array(z.number()).optional(),
   asOf: z.string().optional(),
+});
+
+/** A line in a running money breakdown, e.g. gross sales minus discounts. */
+export const ledgerLineSchema = z.object({
+  label: z.string(),
+  value: z.number().describe("Amount, always positive; kind says how it combines"),
+  kind: z
+    .enum(["base", "add", "subtract", "total"])
+    .describe("base starts the breakdown, add and subtract adjust it, total is a subtotal"),
+  previous: z
+    .number()
+    .optional()
+    .describe("The same line in the comparison: the previous period, last year, or the plan"),
 });
 
 /** A metric's progress toward its target for a calendar period, and where it is heading. */
@@ -335,9 +350,9 @@ export const kpiOutput = {
   periodLabel: z
     .string()
     .describe('The period and its comparison, e.g. "Sep 11 – Oct 10 vs prior 30 days"'),
-  hero: kpiSchema.describe(
-    "The headline metric: HeroMetric(kpis.hero, kpis.heroTrend, kpis.metrics, $metric)",
-  ),
+  hero: kpiSchema
+    .meta({ opaque: "Kpi" })
+    .describe("The headline metric: HeroMetric(kpis.hero, kpis.heroTrend, kpis.metrics, $metric)"),
   heroTrend: trendSchema.meta({ opaque: "Trend" }),
   metrics: z
     .array(kpiSchema.meta({ opaque: "Kpi" }))

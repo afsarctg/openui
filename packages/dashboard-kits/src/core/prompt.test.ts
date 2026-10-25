@@ -15,6 +15,11 @@ describe("coerceArgs: numbers", () => {
     expect(coerceArgs(input, { weeks: 6.6, share: 1.4 })).toEqual({ weeks: 7, share: 1 });
   });
 
+  it("reads a number sent as text, then bounds it", () => {
+    expect(coerceArgs(input, { weeks: "12" })).toEqual({ weeks: 10 });
+    expect(coerceArgs(input, { weeks: "6 weeks" })).toEqual({ weeks: 6 });
+  });
+
   it("leaves everything else alone", () => {
     expect(coerceArgs(input, { weeks: 8, label: "x" })).toEqual({ weeks: 8, label: "x" });
     expect(coerceArgs(input, {})).toEqual({});

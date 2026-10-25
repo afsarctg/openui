@@ -241,7 +241,7 @@ export const TrendSeries = memo(function TrendSeries(props: TrendSeriesProps) {
         .map(({ s, index }) => {
           const muted = s.emphasis === "muted";
           const split = tail && !muted;
-          const dash = muted ? "0.5 4.5" : s.dashed ? "4 4" : undefined;
+          const dash = muted || s.dashed ? "4 4" : undefined;
           return (
             <g key={s.name} className={`${P}-series`} opacity={opacity(s.name)}>
               {/* Dashed and dotted lines can't draw on (the draw-on owns the

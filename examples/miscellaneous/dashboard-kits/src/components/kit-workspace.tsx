@@ -38,6 +38,10 @@ function useThemeMode() {
   return { choice, choose, mode };
 }
 
+/** OpenUI's font tokens, pointed at the Inter that next/font loads (layout.tsx). */
+const INTER = 'var(--font-inter), "Inter", sans-serif';
+const FONTS = { fontBody: INTER, fontHeading: INTER, fontLabel: INTER, fontNumbers: INTER };
+
 const KIT_ICONS: Record<string, string> = {
   ecommerce:
     "M4 6h16l-1.5 9.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 6Zm0 0L3.2 3H1.5M9 21h.01M16 21h.01",
@@ -51,7 +55,7 @@ export function KitWorkspace() {
   const kit = KITS.find((k) => k.id === kitId)!;
 
   return (
-    <ThemeProvider mode={mode}>
+    <ThemeProvider mode={mode} lightTheme={FONTS} darkTheme={FONTS}>
       <main className="workspace kit-theme" data-mode={mode}>
         <header className="workspace__bar">
           <div className="workspace__brand">
