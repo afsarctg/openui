@@ -1,6 +1,7 @@
 import type {
   ActionEvent,
   ElementNode,
+  LibraryActionEvent,
   McpClientLike,
   OpenUIError,
   ParseResult,
@@ -13,10 +14,10 @@ import React, {
   createContext,
   useContext,
   useEffect,
-  useInsertionEffect,
   useMemo,
   useRef,
 } from "react";
+import { Button, Spinner, View, type ButtonProps, type ViewProps } from "./components";
 import { OpenUIContext, useOpenUI, useRenderNode } from "./context";
 import { useOpenUIState } from "./hooks/useOpenUIState";
 import type { ComponentRenderer, Library } from "./library";
@@ -29,15 +30,15 @@ export interface RendererQueryState {
   isRetrying: boolean;
 }
 
-export interface RendererProps {
-  /** OpenUI Lang code or the complete Cloud response bundle. */
+export interface RendererProps<L extends Library = Library> {
+  /** Raw response: openui-lang code, or a stored message with protocol markers (see buildMessage). */
   response: string | null;
   /** Component library from createLibrary(). */
-  library: Library;
+  library: L;
   /** Whether the LLM is still streaming (form interactions disabled during streaming). */
   isStreaming?: boolean;
-  /** Callback when a component triggers an action. */
-  onAction?: (event: ActionEvent) => void;
+  /** Callback when a component triggers an action. Typed by the library's custom actions. */
+  onAction?: (event: LibraryActionEvent<L>) => void;
   /**
    * Called whenever a form field value changes. Receives the raw form state map.
    * The consumer decides how to persist this (e.g. embed in message, store separately).
@@ -67,6 +68,7 @@ export interface RendererProps {
    * Includes generation errors (unknown components, missing required props)
    * and tool execution failures. Retry data-source failures instead of treating
    * every query error as a reason to regenerate the program.
+   * Can include warnings (`severity: "warning"`) for programs that still render.
    * Called with [] when all errors are resolved.
    */
   onError?: (errors: OpenUIError[]) => void;
@@ -187,39 +189,9 @@ function RenderNodeInner({ el, Comp }: { el: ElementNode; Comp: ComponentRendere
   return <Comp props={el.props} renderNode={renderNode} statementId={el.statementId} />;
 }
 
-// ─── Loading style injection (once per document) ───
-
-let loadingStyleInjected = false;
-function ensureLoadingStyle() {
-  if (loadingStyleInjected || typeof document === "undefined") return;
-  loadingStyleInjected = true;
-  const style = document.createElement("style");
-  style.textContent = `@keyframes openui-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`;
-  document.head.appendChild(style);
-}
-
 // ─── Public component ───
 
-const DefaultQueryLoader = () => (
-  <div
-    role="status"
-    aria-label="Loading data"
-    style={{
-      position: "absolute",
-      top: 8,
-      right: 8,
-      width: 16,
-      height: 16,
-      border: "2px solid #e5e7eb",
-      borderTopColor: "#3b82f6",
-      borderRadius: "50%",
-      animation: "openui-spin 0.6s linear infinite",
-      zIndex: 10,
-    }}
-  />
-);
-
-function RendererRoot({
+function RendererRoot<L extends Library = Library>({
   response,
   library,
   isStreaming = false,
@@ -232,11 +204,7 @@ function RendererRoot({
   children,
   onError,
   publishObservability,
-}: RendererProps) {
-  useInsertionEffect(() => {
-    ensureLoadingStyle();
-  }, []);
-
+}: RendererProps<L>) {
   const onParseResultRef = useRef(onParseResult);
   onParseResultRef.current = onParseResult;
 
@@ -274,7 +242,8 @@ function RendererRoot({
         response,
         library,
         isStreaming,
-        onAction,
+        // The hook builds plain ActionEvents; LibraryActionEvent<L> is the same shape, narrowed.
+        onAction: onAction as ((event: ActionEvent) => void) | undefined,
         onStateUpdate,
         initialState,
         toolProvider: resolvedToolProvider,
@@ -299,10 +268,8 @@ function RendererRoot({
     }),
     [isQueryLoading, queryErrors, retryQueries],
   );
-  const value = useMemo(
-    () => ({ root: result?.root ?? null, query, queryLoader }),
-    [result?.root, query, queryLoader],
-  );
+  // Fields read the form store during render, so propagate every Renderer update to the slots.
+  const value = { root: result?.root ?? null, query, queryLoader };
 
   return (
     <OpenUIContext.Provider value={contextValue}>
@@ -330,21 +297,21 @@ export function useRendererQuery(): RendererQueryState {
   return useRendererContext().query;
 }
 
-export type RendererContentSlotProps = Omit<React.ComponentPropsWithRef<"div">, "children">;
+export type RendererContentSlotProps = Omit<ViewProps, "children" | "dimmed">;
 
 /** Displays generated content, preserving mounted components while queries load or fail. */
-function RendererContent({ style, hidden, ...props }: RendererContentSlotProps) {
+function RendererContent({ hidden, ...props }: RendererContentSlotProps) {
   const { root, query } = useRendererContext();
   if (!root) return null;
   return (
-    <div
+    <View
       {...props}
       aria-busy={query.isLoading}
       hidden={hidden || query.errors.length > 0}
-      style={{ opacity: query.isLoading ? 0.7 : 1, transition: "opacity 0.2s ease", ...style }}
+      dimmed={query.isLoading}
     >
       <RenderNode node={root} />
-    </div>
+    </View>
   );
 }
 
@@ -359,7 +326,7 @@ function RendererQueryLoading({ children }: RendererSlotProps) {
     queryLoader,
   } = useRendererContext();
   if (!isLoading || errors.length > 0) return null;
-  return <>{children === undefined ? (queryLoader ?? <DefaultQueryLoader />) : children}</>;
+  return <>{children === undefined ? (queryLoader ?? <Spinner />) : children}</>;
 }
 
 /** Shows the supplied content when queries fail; renders nothing without children. */
@@ -369,24 +336,12 @@ function RendererQueryError({ children }: RendererSlotProps) {
   return <>{children}</>;
 }
 
-export type RendererRetryProps = React.ComponentPropsWithRef<"button">;
+export type RendererRetryProps = ButtonProps;
 
-function RendererRetry({ children, onClick, disabled, ...props }: RendererRetryProps) {
+function RendererRetry({ disabled, ...props }: RendererRetryProps) {
   const { retry, isLoading, errors } = useRendererQuery();
-  const isDisabled = disabled || isLoading || errors.length === 0;
   return (
-    <button
-      type="button"
-      {...props}
-      disabled={isDisabled}
-      onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
-        if (isDisabled || event.defaultPrevented) return;
-        onClick?.(event);
-        if (!event.defaultPrevented) retry();
-      }}
-    >
-      {children}
-    </button>
+    <Button {...props} disabled={disabled || isLoading || errors.length === 0} onActivate={retry} />
   );
 }
 
@@ -394,16 +349,16 @@ function DefaultRendererContent() {
   const { root, query, queryLoader } = useRendererContext();
   if (!root) return null;
   return (
-    <div aria-busy={query.isLoading} style={{ position: "relative" }}>
-      {query.isLoading && (queryLoader ?? <DefaultQueryLoader />)}
-      <div style={{ opacity: query.isLoading ? 0.7 : 1, transition: "opacity 0.2s ease" }}>
+    <View aria-busy={query.isLoading} style={{ position: "relative" }}>
+      {query.isLoading && (queryLoader ?? <Spinner />)}
+      <View dimmed={query.isLoading}>
         <RenderNode node={root} />
-      </div>
-    </div>
+      </View>
+    </View>
   );
 }
 
-function DefaultRenderer({ children, ...props }: RendererProps) {
+function DefaultRenderer<L extends Library = Library>({ children, ...props }: RendererProps<L>) {
   return (
     <RendererRoot {...props}>
       {children === undefined ? <DefaultRendererContent /> : children}
