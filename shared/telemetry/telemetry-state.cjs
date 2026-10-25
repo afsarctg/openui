@@ -16,6 +16,7 @@ function createTelemetryStateIO(overrides = {}) {
     mkdir: (directory) => fs.mkdirSync(directory, { recursive: true, mode: 0o700 }),
     exists: fs.existsSync,
     link: fs.linkSync,
+    rename: fs.renameSync,
     unlink: fs.unlinkSync,
     randomUUID: crypto.randomUUID,
     randomHex: (bytes) => crypto.randomBytes(bytes).toString("hex"),
@@ -150,28 +151,35 @@ function readState(file, io, requireProjectSalt = true) {
     if (error.code === "ENOENT") return undefined;
     throw error;
   }
-  const state = JSON.parse(contents);
-  if (
-    !state ||
-    typeof state !== "object" ||
-    Array.isArray(state) ||
-    typeof state.distinctId !== "string" ||
-    !state.distinctId ||
-    ((typeof state.projectSalt !== "string" || !state.projectSalt) &&
-      (requireProjectSalt || state.projectSalt !== undefined))
-  ) {
-    throw new Error("Invalid telemetry identity state");
+  let state;
+  try {
+    state = JSON.parse(contents);
+  } catch {
+    // Corrupt JSON is repaired without treating filesystem errors as corruption.
   }
-  return state;
+  if (!state || typeof state !== "object" || Array.isArray(state)) state = {};
+  return {
+    state,
+    valid:
+      typeof state.distinctId === "string" &&
+      Boolean(state.distinctId) &&
+      ((typeof state.projectSalt === "string" && Boolean(state.projectSalt)) ||
+        (!requireProjectSalt && state.projectSalt === undefined)),
+  };
 }
 
-function initializeState(file, state, io, requireProjectSalt) {
+function initializeState(file, state, io, requireProjectSalt, replace = false) {
   io.mkdir(path.dirname(file));
   const temporary = `${file}.${io.randomUUID()}.tmp`;
   let createdTemporary = false;
   try {
     io.writeFile(temporary, JSON.stringify(state), { mode: 0o600, flag: "wx" });
     createdTemporary = true;
+    if (replace) {
+      io.rename(temporary, file);
+      createdTemporary = false;
+      return state;
+    }
     try {
       // Publish complete bytes without replacing a winner from another process.
       io.link(temporary, file);
@@ -179,8 +187,8 @@ function initializeState(file, state, io, requireProjectSalt) {
     } catch (error) {
       if (error.code !== "EEXIST") throw error;
       const winner = readState(file, io, requireProjectSalt);
-      if (!winner) throw new Error("Telemetry identity disappeared during initialization");
-      return winner;
+      if (!winner?.valid) throw new Error("Telemetry identity unavailable during initialization");
+      return winner.state;
     }
   } finally {
     if (createdTemporary) {
@@ -225,21 +233,25 @@ function loadTelemetryState(options = {}) {
     }
     const requireProjectSalt = options.requireProjectSalt !== false;
     const existing = readState(file, io, requireProjectSalt);
-    if (existing) return { state: existing, file, ci, isDocker, projectIdentity };
-    let state;
-    if (file !== localFile) {
+    if (existing?.valid) return { state: existing.state, file, ci, isDocker, projectIdentity };
+    let state = existing?.state;
+    if (!existing && file !== localFile) {
       // One-time import only; the selected cache remains authoritative afterward.
-      try {
-        state = readState(localFile, io, requireProjectSalt);
-      } catch {
-        /* Leave invalid legacy state untouched. */
-      }
+      state = readState(localFile, io, requireProjectSalt)?.state;
     }
-    state ??= { distinctId: io.randomUUID(), projectSalt: io.randomHex(16) };
-    // A new cache copy can include a salt even when importing legacy CLI-only state.
-    if (!state.projectSalt) state = { ...state, projectSalt: io.randomHex(16) };
+    state = {
+      ...state,
+      distinctId:
+        typeof state?.distinctId === "string" && state.distinctId
+          ? state.distinctId
+          : io.randomUUID(),
+      projectSalt:
+        typeof state?.projectSalt === "string" && state.projectSalt
+          ? state.projectSalt
+          : io.randomHex(16),
+    };
     return {
-      state: initializeState(file, state, io, requireProjectSalt),
+      state: initializeState(file, state, io, requireProjectSalt, Boolean(existing)),
       file,
       ci,
       isDocker,

@@ -10,6 +10,7 @@ export interface TelemetryStateIO {
   mkdir(directory: string): void;
   exists(file: string): boolean;
   link(existing: string, destination: string): void;
+  rename(existing: string, destination: string): void;
   unlink(file: string): void;
   randomUUID(): string;
   randomHex(bytes: number): string;
