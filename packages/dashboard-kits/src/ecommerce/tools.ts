@@ -38,6 +38,13 @@ const customerType = z
   .default("all")
   .describe("Orders from first-time customers, from returning ones, or both")
   .meta({ filter: "$customer" });
+const whyMetric = z.enum([
+  "contribution_profit",
+  "total_sales",
+  "orders",
+  "aov",
+  "conversion_rate",
+]);
 const device = z
   .enum(["all", "desktop", "mobile", "tablet"])
   .default("all")
@@ -138,9 +145,7 @@ export const ecommerceTools = [
     description:
       "Why a metric moved: its change, a confidence label (Low means within the normal range, so no drivers), a summary, the drivers for and against (by channel, customer type, category, profit line, or ad platform), a walk from the comparison to now, and any tracking change behind it. Feeds DriverCards(why) and VarianceWalk(why.walk, why.comparisonLabel, why.format).",
     input: z.object({
-      metric: z
-        .enum(["contribution_profit", "total_sales", "orders", "aov", "conversion_rate"])
-        .default("contribution_profit"),
+      metric: whyMetric.default("contribution_profit"),
       range: rangeSchema,
       channel,
       compare: compareSchema,
@@ -621,7 +626,14 @@ export const ecommerceTools = [
     name: "get_store_insights",
     description:
       "What changed, most important first: what moved profit, tracking changes, the sales change and its driver, stockouts, channels below break-even, goal pace, checkout, promotions, returns, and ad-spend concentration. Feeds InsightList directly.",
-    input: z.object({ range: rangeSchema, channel, compare: compareSchema }),
+    input: z.object({
+      range: rangeSchema,
+      channel,
+      compare: compareSchema,
+      excluding: whyMetric
+        .optional()
+        .describe("An explain_change metric shown beside the list: leaves out its change"),
+    }),
     output: z.object({ insights: z.array(insightSchema) }),
   }),
 ];

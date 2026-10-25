@@ -54,3 +54,63 @@ describe("coerceArgs: choices", () => {
     expect(() => input.parse(coerceArgs(input, { mode: "c" }))).toThrow();
   });
 });
+
+describe("coerceArgs: loose spellings, booleans, and lists", () => {
+  const input = z.object({
+    compare: z.enum(["previous_period", "last_year", "plan"]).default("previous_period"),
+    cumulative: z.boolean().optional(),
+    window: z.union([z.literal(7), z.literal(28)]).default(7),
+    platforms: z.array(z.enum(["web", "ios", "android"])).optional(),
+    steps: z.array(z.string()).optional(),
+    strict: z.boolean(),
+  });
+
+  it("matches choices ignoring case, spaces, underscores, and hyphens", () => {
+    expect(coerceArgs(input, { compare: "Previous period" })).toEqual({
+      compare: "previous_period",
+    });
+    expect(coerceArgs(input, { compare: "last-year" })).toEqual({ compare: "last_year" });
+    expect(coerceArgs(input, { compare: " PLAN " })).toEqual({ compare: "plan" });
+  });
+
+  it("reads booleans sent as text", () => {
+    expect(coerceArgs(input, { cumulative: "true", strict: "No" })).toEqual({
+      cumulative: true,
+      strict: false,
+    });
+    expect(coerceArgs(input, { cumulative: "yes", strict: 0 })).toEqual({
+      cumulative: true,
+      strict: false,
+    });
+  });
+
+  it("takes the first valid item when a list is sent for one choice", () => {
+    expect(coerceArgs(input, { compare: ["banana", "Last year", "plan"] })).toEqual({
+      compare: "last_year",
+    });
+    expect(coerceArgs(input, { window: ["28"] })).toEqual({ window: 28 });
+  });
+
+  it("matches numeric choices to the nearest option", () => {
+    expect(coerceArgs(input, { window: "28" })).toEqual({ window: 28 });
+    expect(coerceArgs(input, { window: 30 })).toEqual({ window: 28 });
+  });
+
+  it("wraps a single value where a list is expected, repairing each item", () => {
+    expect(coerceArgs(input, { platforms: "iOS" })).toEqual({ platforms: ["ios"] });
+    expect(coerceArgs(input, { platforms: "web, Android" })).toEqual({
+      platforms: ["web", "android"],
+    });
+    expect(coerceArgs(input, { platforms: ["WEB", "ios"] })).toEqual({ platforms: ["web", "ios"] });
+    expect(coerceArgs(input, { steps: "Created board" })).toEqual({ steps: ["Created board"] });
+  });
+
+  it("leaves what it can't repair for the schema to reject", () => {
+    expect(() => input.parse(coerceArgs(input, { strict: "maybe" }))).toThrow();
+    expect(() =>
+      input.parse(coerceArgs(input, { strict: true, platforms: ["web", "windows"] })),
+    ).toThrow();
+    expect(() => input.parse(coerceArgs(input, { strict: true, steps: { a: 1 } }))).toThrow();
+    expect(coerceArgs(input, { compare: ["banana"], strict: true })).toEqual({ strict: true });
+  });
+});

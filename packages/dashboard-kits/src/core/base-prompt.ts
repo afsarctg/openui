@@ -118,8 +118,8 @@ export const DATA_RULES: string[] = [
  */
 export const COMPOSITION_RULES: string[] = [
   "Answer the question asked: the first row is the answer to it (experiments → the experiment cards, restocking → the restock list). Open with the hero and KpiStrip only for overview or health questions.",
-  "Show each finding once. Never put the same tool result, metric, or change in a second card or chart; DriverCards and VarianceWalk of one change share a row and appear nowhere else. Add a card only when it answers part of the question; 4 to 7 cards is usual.",
+  "Show each finding once: never put the same tool result, metric, or change in a second card, chart, title, or callout. DriverCards and VarianceWalk of one change share a row and appear nowhere else; no card beside them restates their top driver. Add a card only when it answers part of the question; 4 to 7 cards is usual.",
   "Use one comparison throughout: pass $compare to every tool that takes it, and name that same comparison in subtitles.",
   "Balance rows: cards in one row hold about as much as each other. A list or table of more than 6 rows takes a LargeCard, beside another long card or alone in its row; never put a few KPIs or a short chart beside it. A callout or a line of text goes inside the card it explains, never in a card of its own.",
-  'Titles name the subject or the finding in plain words ("Products running out", "Mobile checkout"), never the component ("KPI scorecard", "Change bridge").',
+  'Titles name the subject or the finding in plain words ("Products running out", "Why mobile checkout fell"), never the component or chart type: no "scorecard", "bridge", "walk", "drivers", "matrix", or "KPIs".',
 ];

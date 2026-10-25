@@ -1,12 +1,14 @@
+import { buildSystemPrompt } from "@openuidev/dashboard-kits/server";
 import type { ChatCompletionChunk } from "openai/resources/chat/completions";
 import { getKit } from "../../../kits";
 import { modelClient } from "../../../kits/llm";
-import { buildSystemPrompt } from "../../../kits/server";
+import { getKitSpec } from "../../../kits/server";
 
 export const runtime = "nodejs";
 
 // Self-hosted serving: the kit's full system prompt (components, tools, rules,
-// examples) is built here and sent as the system message. The model streams
+// and the gallery dashboards most relevant to the request as examples) is
+// built here and sent as the system message. The model streams
 // openui-lang back; the browser renders it with the same kit library.
 export async function POST(request: Request) {
   const { kit: kitId, prompt } = (await request.json()) as { kit?: string; prompt?: string };
@@ -33,7 +35,10 @@ export async function POST(request: Request) {
         model: llm.model,
         stream: true,
         messages: [
-          { role: "system", content: buildSystemPrompt(kit) },
+          {
+            role: "system",
+            content: buildSystemPrompt(kit, getKitSpec(kit.id), { question: prompt }),
+          },
           { role: "user", content: prompt },
         ],
       },

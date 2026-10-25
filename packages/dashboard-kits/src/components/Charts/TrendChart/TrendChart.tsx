@@ -5,6 +5,7 @@ import { changeTone, formatChange } from "../../../core/format";
 import { useChartHover, useContainerSize, useKitPalette, useSeriesFocus } from "../hooks";
 import { ChartCrosshair, ChartLegend, ChartTooltip, type LegendGuide } from "../shared";
 import { ChartEmpty } from "../shared/ChartEmpty";
+import { linePatterns } from "../shared/linePatterns";
 import { colorSeries, comparisonInSeriesColor, paletteCount } from "../shared/seriesColors";
 import { DEFAULT_TREND_HEIGHT, KIT_CHART_PREFIX, X_LABEL_SPACING } from "../utils/constants";
 import { formatAxis, formatValue } from "../utils/format";
@@ -68,6 +69,8 @@ function TrendChartImpl({
     () => comparisonInSeriesColor(colorSeries(drawn, palette), drawn),
     [drawn, palette],
   );
+  // Three or more strong lines are told apart by dash as well as color.
+  const patterns = useMemo(() => linePatterns(series), [series]);
   const variant = variantProp ?? (series.length > 2 ? "line" : "area");
   const n = labels.length;
   const width = Math.max(size.width, MIN_WIDTH);
@@ -164,10 +167,11 @@ function TrendChartImpl({
     <div className={clsx(P, fill && `${P}--fill`, className)} data-kit-fill={fill ? "" : undefined}>
       {legend && series.length > 1 && (
         <ChartLegend
-          items={series.map((s) => ({
+          items={series.map((s, i) => ({
             name: s.name,
             color: s.color,
             dashed: s.dashed || s.emphasis === "muted",
+            pattern: patterns?.[i],
           }))}
           guides={legendGuides}
           {...focus.legend}
@@ -221,6 +225,7 @@ function TrendChartImpl({
             flat={geometry.flat}
             pointCount={n}
             series={series}
+            patterns={patterns}
             primary={primary}
             comparison={comparison}
             area={variant === "area"}
@@ -281,11 +286,12 @@ function TrendChartImpl({
                   ? "In progress · projected from the pace so far"
                   : undefined
             }
-            rows={series.map((s) => ({
+            rows={series.map((s, i) => ({
               color: s.color,
               name: s.name,
               value: formatValue(s.values[hovered]!, format),
               dashed: s.dashed || s.emphasis === "muted",
+              pattern: patterns?.[i],
             }))}
             footer={gapFooter}
           />

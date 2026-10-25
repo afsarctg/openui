@@ -18,8 +18,8 @@ export {
 } from "./core/base-prompt";
 export { defineTool, toToolSpec } from "./core/kit";
 export type { GalleryDashboard, KitDefinition, KitTool } from "./core/kit";
-export { buildSystemPrompt, runTool } from "./core/prompt";
-export type { ToolHandler } from "./core/prompt";
+export { buildSystemPrompt, PROMPT_BUDGET, rankGallery, runTool } from "./core/prompt";
+export type { PromptOptions, ToolHandler } from "./core/prompt";
 export * from "./core/schemas";
 export { ecommerceTools } from "./ecommerce/tools";
 export { analyticsHandlers, analyticsKit, ecommerceHandlers, ecommerceKit };

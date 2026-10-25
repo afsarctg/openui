@@ -1,3 +1,6 @@
+// The package root, not the `@openuidev/react-ui/ThemeProvider` subpath: that
+// build creates a ThemeContext of its own, so it would never see the
+// ThemeProvider a host renders from the root.
 import { useTheme, type ChartColorPalette } from "@openuidev/react-ui";
 import { useMemo } from "react";
 

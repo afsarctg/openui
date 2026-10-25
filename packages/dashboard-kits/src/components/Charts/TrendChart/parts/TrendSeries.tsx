@@ -3,6 +3,7 @@ import { memo, useId, useRef, type RefObject } from "react";
 import { useIsomorphicLayoutEffect } from "../../hooks";
 import { FADED_OPACITY } from "../../hooks/useSeriesFocus";
 import { AnimatedPath } from "../../shared/AnimatedPath";
+import { DASH_ARRAYS, type LinePattern } from "../../shared/linePatterns";
 import type { ColoredSeries } from "../../shared/seriesColors";
 import { areaD, lineD, seriesCurve } from "../../shared/seriesGeometry";
 import { springPresets, useDataMorph } from "../../shared/spring";
@@ -22,6 +23,8 @@ export interface TrendSeriesProps {
   flat: Float64Array;
   pointCount: number;
   series: ColoredSeries[];
+  /** A dash pattern per series when color alone can't tell them apart (see `linePatterns`). */
+  patterns: LinePattern[] | null;
   /** Index of the series the story is about; it gets the area wash and gap. */
   primary: number;
   /** Index of the muted comparison series, or -1. */
@@ -241,7 +244,12 @@ export const TrendSeries = memo(function TrendSeries(props: TrendSeriesProps) {
         .map(({ s, index }) => {
           const muted = s.emphasis === "muted";
           const split = tail && !muted;
-          const dash = muted || s.dashed ? "4 4" : undefined;
+          const pattern = props.patterns?.[index];
+          const dash = pattern
+            ? DASH_ARRAYS[pattern]
+            : muted || s.dashed
+              ? DASH_ARRAYS.context
+              : undefined;
           return (
             <g key={s.name} className={`${P}-series`} opacity={opacity(s.name)}>
               {/* Dashed and dotted lines can't draw on (the draw-on owns the

@@ -17,6 +17,14 @@
 .kit-key--dashed {
   background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 7px);
 }
+/* A patterned line's key draws the line's own dash, so it needs the room. */
+.kit-key--pattern {
+  width: 24px;
+  height: 4px;
+  border-radius: 0;
+  background: none;
+  overflow: visible;
+}
 .kit-key--target {
   height: 2px;
   background: repeating-linear-gradient(90deg, var(--kit-ink-2) 0 4px, transparent 4px 7px);

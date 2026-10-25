@@ -1,13 +1,20 @@
-import { toToolSpec } from "@openuidev/dashboard-kits/server";
+import { buildSystemPrompt, toToolSpec } from "@openuidev/dashboard-kits/server";
 import { getKit } from "../../../kits";
-import { buildSystemPrompt } from "../../../kits/server";
+import { getKitSpec } from "../../../kits/server";
 
-/** The system prompt a kit sends to the model, for inspection in the Prompt view. */
+/**
+ * The system prompt a kit sends to the model, for inspection in the Prompt
+ * view. With `?question=`, the prompt that request would get, its examples
+ * picked for it.
+ */
 export async function GET(request: Request) {
-  const kit = getKit(new URL(request.url).searchParams.get("kit") ?? "");
+  const params = new URL(request.url).searchParams;
+  const kit = getKit(params.get("kit") ?? "");
   if (!kit) return Response.json({ error: "Unknown kit" }, { status: 404 });
   return Response.json({
-    prompt: buildSystemPrompt(kit),
+    prompt: buildSystemPrompt(kit, getKitSpec(kit.id), {
+      question: params.get("question") ?? undefined,
+    }),
     tools: kit.tools.map(toToolSpec),
   });
 }

@@ -522,3 +522,110 @@ describe("TRACE-inspired cards", () => {
     expect(label("Lifetime value")).toBeDefined();
   });
 });
+
+describe("filters move every card", () => {
+  it("follows the retention mode on the curves as on the cohorts, brackets included", () => {
+    for (const unit of ["user", "workspace"] as const) {
+      const exact = run("get_retention_curves", { unit });
+      const later = run("get_retention_curves", { unit, mode: "unbounded" });
+      const bracket = run("get_retention_curves", { unit, mode: "bracket" });
+      expect(later.all).not.toEqual(exact.all);
+      expect(later.rule).toBe(run("get_retention_cohorts", { unit, mode: "unbounded" }).rule);
+      expect(bracket.labels).toEqual(
+        run("get_retention_cohorts", { unit, mode: "bracket" }).periodLabels,
+      );
+      expect(bracket.all).toHaveLength(4);
+      // A bracket counts anyone active in any of its weeks.
+      expect(bracket.all[3]).toBeGreaterThanOrEqual(exact.all[4] - 0.05);
+    }
+    const program = analyticsKit.gallery.find((d) => d.title === "Retention and lifecycle")!;
+    expect(program.program).toMatch(/get_retention_curves", \{[^}]*mode: \$mode/);
+  });
+
+  it("measures feature breadth, frequency, and users over the chosen period", () => {
+    const at = (range: string) =>
+      Object.fromEntries(
+        run("get_feature_engagement", { range }).features.map(
+          (f: { name: string }) => [f.name, f] as const,
+        ),
+      ) as Record<string, { breadth: number; frequency: number; users: number }>;
+    const [week, month, quarter] = ["7d", "30d", "90d"].map(at);
+    for (const name of Object.keys(month!)) {
+      expect(week![name]!.breadth).toBeLessThan(month![name]!.breadth);
+      expect(quarter![name]!.breadth).toBeGreaterThan(month![name]!.breadth);
+      expect(week![name]!.users).toBeLessThan(month![name]!.users);
+      expect(quarter![name]!.users).toBeGreaterThan(month![name]!.users);
+      expect(quarter![name]!.frequency).toBeLessThanOrEqual(month![name]!.frequency);
+      expect(week![name]!.frequency).toBeLessThanOrEqual(7);
+    }
+    // Plausible: a weekly read is not a fraction of the monthly one.
+    expect(week!["Boards"]!.breadth).toBeGreaterThan(70);
+    expect(at("30d")).toEqual(month);
+  });
+
+  it("counts the by-platform card in the funnel's unit", () => {
+    const users = run("get_activation_funnel", { range: "30d" });
+    const ws = run("get_activation_funnel", { range: "30d", unit: "workspace" });
+    expect(ws.platformUsers).not.toEqual(users.platformUsers);
+    expect(ws.platformActivation).not.toEqual(users.platformActivation);
+    expect(ws.platformRule).toMatch(/new workspaces/);
+    const share = ws.platformUsers.reduce((a: number, p: { share: number }) => a + p.share, 0);
+    expect(share).toBeCloseTo(1, 3);
+    // The platforms' new workspaces add up to the funnel's first step.
+    const created = total(ws.platformUsers.map((p: { value: number }) => p.value));
+    expect(Math.abs(created - ws.steps[0].value)).toBeLessThanOrEqual(3);
+  });
+
+  it("charts free to paid for the weeks of the chosen period", () => {
+    const month = run("get_monetization", { range: "30d" });
+    const quarter = run("get_monetization", { range: "90d" });
+    expect(month.labels).toHaveLength(5);
+    expect(quarter.labels).toHaveLength(13);
+    expect(month.freeToPaid).toEqual(quarter.freeToPaid.slice(-5));
+    const tile = (m: { metrics: Kpi[] }) => m.metrics.find((k) => k.label === "Free to paid")!;
+    expect(tile(month).series).toHaveLength(5);
+    expect(tile(month).value).toBe(tile(quarter).value);
+    expect(tile(month).previous).not.toBe(tile(quarter).previous);
+  });
+
+  it("reads DAU/MAU the same on the KPI tile and the why-card", () => {
+    for (const range of RANGES)
+      for (const platform of ["all", ...PLATFORMS])
+        for (const plan of ["all", "free", "team", "business"])
+          for (const compare of ["previous_period", "last_year"]) {
+            const args = { range, platform, plan, compare };
+            const tile = run("get_usage_kpis", args).metrics.find(
+              (k: Kpi) => k.label === "DAU/MAU",
+            );
+            const why = run("explain_change", { ...args, metric: "stickiness" });
+            const label = JSON.stringify(args);
+            expect(why.value, label).toBe(tile.value);
+            expect(why.comparison, label).toBe(tile.previous);
+          }
+  });
+
+  it("leaves the explained metric's period change out of the insights beside it", () => {
+    const all = run("get_product_insights", { range: "30d" }).insights;
+    const titles = (excluding: string) =>
+      run("get_product_insights", { range: "30d", excluding }).insights.map(
+        (i: { title: string }) => i.title,
+      );
+    const wau = all.find((i: { kind?: string }) => i.kind === "period_change");
+    expect(wau.title).toMatch(/^Weekly active users/);
+    expect(titles("wau")).not.toContain(wau.title);
+    expect(titles("wau")).toContain(all[1].title);
+    const activation = all.find((i: { title: string }) => i.title.startsWith("Activation"));
+    if (activation) expect(titles("activation")).not.toContain(activation.title);
+    // Other findings stay, the tracking break among them.
+    const ios = run("get_product_insights", { range: "90d", platform: "ios", excluding: "wau" });
+    expect(ios.insights.some((i: { kind?: string }) => i.kind === "data_quality")).toBe(true);
+    const program = analyticsKit.gallery.find((d) => d.title === "What changed and why")!;
+    expect(program.program).toMatch(/get_product_insights", \{[^}]*excluding: \$why/);
+  });
+
+  it("titles the feature matrix by its subject", () => {
+    const program = analyticsKit.gallery.find((d) => d.title === "Features and experiments")!;
+    expect(program.program).not.toMatch(/"Engagement matrix"/);
+    expect(program.program).toMatch(/DashboardCardHeader\("How features are used"/);
+  });
+});

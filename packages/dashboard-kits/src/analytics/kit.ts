@@ -7,6 +7,7 @@ const FILTERS = `filters = FilterBar([rangeFilter, platformFilter, planFilter])
 rangeFilter = FilterSelect("range", "Period", [{value: "7d", label: "Last 7 days"}, {value: "30d", label: "Last 30 days"}, {value: "90d", label: "Last 90 days"}, {value: "mtd", label: "Month to date"}], $range)
 platformFilter = FilterSelect("platform", "Platform", [{value: "all", label: "All platforms"}, {value: "web", label: "Web"}, {value: "ios", label: "iOS"}, {value: "android", label: "Android"}], $platform)
 planFilter = FilterSelect("plan", "Plan", [{value: "all", label: "All plans"}, {value: "free", label: "Free"}, {value: "team", label: "Team"}, {value: "business", label: "Business"}], $plan)`;
+const COMPARE_FILTER = `compareFilter = FilterSelect("compare", "Compare with", [{value: "previous_period", label: "Previous period"}, {value: "last_year", label: "Last year"}, {value: "plan", label: "Plan"}], $compare)`;
 const KPI_DEFAULTS = `{periodLabel: "", hero: {label: "Loading", value: "—"}, heroTrend: {labels: [], current: []}, metrics: []}`;
 const SOURCES_DEFAULTS = `{labels: [], signups: [], activationRate: [], items: [], activation: []}`;
 
@@ -20,10 +21,10 @@ $compare = "previous_period"
 section = Section([heroRow, kpiRow, usersRow, lifecycleRow], filters)
 filters = FilterBar([rangeFilter, compareFilter, platformFilter, planFilter, activeFilter])
 ${FILTERS.split("\n").slice(1).join("\n")}
-compareFilter = FilterSelect("compare", "Compare with", [{value: "previous_period", label: "Previous period"}, {value: "last_year", label: "Last year"}, {value: "plan", label: "Plan"}], $compare)
+${COMPARE_FILTER}
 ${ACTIVE_FILTER}
 kpis = Query("get_usage_kpis", {range: $range, platform: $platform, plan: $plan, active: $active, compare: $compare}, ${KPI_DEFAULTS})
-insights = Query("get_product_insights", {range: $range, platform: $platform, plan: $plan}, {insights: []})
+insights = Query("get_product_insights", {range: $range, platform: $platform, plan: $plan, compare: $compare}, {insights: []})
 heroRow = CardRow([heroCard, insightCard])
 heroCard = LargeCard([hero, statusChips])
 $metric = ""
@@ -67,7 +68,7 @@ filters = FilterBar([platformFilter, planFilter, modeFilter, unitFilter])
 ${FILTERS.split("\n").slice(2).join("\n")}
 modeFilter = FilterSelect("mode", "Retention", [{value: "exact", label: "Active that week"}, {value: "unbounded", label: "That week or later"}, {value: "bracket", label: "Brackets"}], $mode)
 unitFilter = FilterSelect("unit", "Count", [{value: "user", label: "Users"}, {value: "workspace", label: "Workspaces"}], $unit)
-curves = Query("get_retention_curves", {platform: $platform, weeks: 8, unit: $unit}, {labels: [], all: [], free: [], team: [], business: [], flattened: "", rule: ""})
+curves = Query("get_retention_curves", {platform: $platform, weeks: 8, mode: $mode, unit: $unit}, {labels: [], all: [], free: [], team: [], business: [], flattened: "", rule: ""})
 sticky = Query("get_stickiness", {platform: $platform, plan: $plan, window: 28}, {window: 28, buckets: [], powerUserShare: "—"})
 curveRow = CardRow([curveCard, stickyCard])
 curveCard = LargeCard([curveHeader, curveChart])
@@ -121,10 +122,10 @@ valueHeader = DashboardCardHeader("Feature value", "Which features go with users
 value = FeatureValue(features.features)
 matrixRow = CardRow([matrixCard, adoptionCard])
 matrixCard = LargeCard([matrixHeader, matrix])
-matrixHeader = DashboardCardHeader("Engagement matrix", "Breadth against frequency, sized by users; lines mark the medians")
+matrixHeader = DashboardCardHeader("How features are used", "How many use each feature against how often, sized by users; lines mark the medians")
 matrix = EngagementMatrix(features.features)
 adoptionCard = MediumCard([adoptionHeader, adoption])
-adoptionHeader = DashboardCardHeader("Feature adoption", "Share of monthly active users, with change")
+adoptionHeader = DashboardCardHeader("Feature adoption", "Share of the period's active users, with change")
 adoption = FeatureAdoption(features.features, 8)
 heat = Query("get_activity_heatmap", {range: $range, platform: $platform, plan: $plan}, {hourLabels: [], days: []})
 rhythmRow = CardRow([heatCard])
@@ -222,7 +223,7 @@ section = Section([funnelRow, platformRow, momentRow, pathRow], filters)
 filters = FilterBar([rangeFilter, platformFilter, planFilter, unitFilter])
 ${FILTERS.split("\n").slice(1).join("\n")}
 unitFilter = FilterSelect("unit", "Count", [{value: "user", label: "Users"}, {value: "workspace", label: "Workspaces"}], $unit)
-funnel = Query("get_activation_funnel", {range: $range, platform: $platform, plan: $plan, unit: $unit}, {steps: [], activationRate: "—", validity: {activated: "", notActivated: "", ratio: 0, pass: false, note: ""}, platformUsers: [], platformActivation: []})
+funnel = Query("get_activation_funnel", {range: $range, platform: $platform, plan: $plan, unit: $unit}, {steps: [], activationRate: "—", validity: {activated: "", notActivated: "", ratio: 0, pass: false, note: ""}, platformUsers: [], platformActivation: [], platformRule: ""})
 sources = Query("get_signups_by_source", {range: $range, platform: $platform}, ${SOURCES_DEFAULTS})
 funnelRow = CardRow([funnelCard, sourceCard])
 funnelCard = LargeCard([funnelHeader, funnelChart, validityNote])
@@ -235,7 +236,7 @@ sourceShare = ShareBar(sources.items, "number")
 sourceList = BarList(sources.activation, "percent", 6, "Activated")
 platformRow = CardRow([platformCard])
 platformCard = LargeCard([platformHeader, platformShare, platformActivation])
-platformHeader = DashboardCardHeader("Daily users by platform", "Each platform's share of daily actives, and activation for its signups, against the prior period")
+platformHeader = DashboardCardHeader("Platform mix", funnel.platformRule)
 platformShare = ShareBar(funnel.platformUsers, "number", $platform)
 platformActivation = BarList(funnel.platformActivation, "percent", 3, "Activation by platform")
 moments = Query("find_activation_moment", {platform: $platform, plan: $plan}, {cohort: "", users: 0, baseline: "", candidates: [], note: ""})
@@ -258,13 +259,15 @@ $range = "30d"
 $platform = "all"
 $plan = "all"
 $active = "core"
+$compare = "previous_period"
 section = Section([whyRow, walkRow], filters)
-filters = FilterBar([metricFilter, rangeFilter, platformFilter, planFilter, activeFilter])
+filters = FilterBar([metricFilter, rangeFilter, compareFilter, platformFilter, planFilter, activeFilter])
 metricFilter = FilterSelect("why", "Metric", [{value: "wau", label: "Weekly active users"}, {value: "dau", label: "Daily active users"}, {value: "signups", label: "New signups"}, {value: "activation", label: "Activation"}, {value: "stickiness", label: "DAU/MAU"}], $why)
 ${FILTERS.split("\n").slice(1).join("\n")}
+${COMPARE_FILTER}
 ${ACTIVE_FILTER}
-why = Query("explain_change", {metric: $why, range: $range, platform: $platform, plan: $plan, active: $active}, ${WHY_DEFAULTS})
-insights = Query("get_product_insights", {range: $range, platform: $platform, plan: $plan}, {insights: []})
+why = Query("explain_change", {metric: $why, range: $range, platform: $platform, plan: $plan, active: $active, compare: $compare}, ${WHY_DEFAULTS})
+insights = Query("get_product_insights", {range: $range, platform: $platform, plan: $plan, compare: $compare, excluding: $why}, {insights: []})
 whyRow = CardRow([whyCard, insightCard])
 whyCard = LargeCard([whyHeader, drivers])
 whyHeader = DashboardCardHeader(why.value, why.metric, "number")
@@ -274,7 +277,7 @@ insightHeader = DashboardCardHeader("Across the product", "Other findings, most 
 insightList = InsightList(insights.insights, 4)
 walkRow = CardRow([walkCard])
 walkCard = LargeCard([walkHeader, walkChart])
-walkHeader = DashboardCardHeader("From the prior period to this one", "Each change that lifted (blue) or lowered (red) the metric, data problems first")
+walkHeader = DashboardCardHeader("From the comparison to this period", "Each change that lifted (blue) or lowered (red) the metric, data problems first")
 walkChart = VarianceWalk(why.walk, why.comparisonLabel, why.format)`;
 
 const ACCOUNTS_AND_REVENUE = `root = Dashboard([header, section])
@@ -334,8 +337,8 @@ export const analyticsKit: KitDefinition = {
   preamble:
     "You build product analytics dashboards for the team behind Relay, a team workspace app with boards, tasks, and docs, sold on Free, Team, and Business plans and used on web, iOS, and Android. You are generating an openui-lang dashboard.",
   rules: [
-    'Filters: $range ("7d" | "30d" | "90d" | "mtd", default "30d"), $platform ("all" | "web" | "ios" | "android"), $plan ("all" | "free" | "team" | "business"), $active ("core" | "any": what counts as active), $compare ("previous_period" | "last_year" | "plan", get_usage_kpis only). Tool arguments of the same names take these values. Why questions → explain_change with DriverCards and VarianceWalk, its metric matching the question and the dashboard filters; never write a cause the tools did not return. get_lifecycle, get_retention_cohorts, get_retention_curves, and get_stickiness take no range. Only add filters that the dashboard\'s tools accept.',
-    `Definitions: ${glossary()}. Breadth = percent of monthly active users using a feature; frequency = days per week they use it. Each KPI carries its definition.`,
+    'Filters: $range ("7d" | "30d" | "90d" | "mtd", default "30d"), $platform ("all" | "web" | "ios" | "android"), $plan ("all" | "free" | "team" | "business"), $active ("core" | "any": what counts as active), $compare ("previous_period" | "last_year" | "plan"). Tool arguments of the same names take these values: pass $compare to every tool that takes compare, so all cards share one basis. Why questions → explain_change with DriverCards and VarianceWalk, its metric matching the question and the dashboard filters; never write a cause the tools did not return. get_lifecycle, get_retention_cohorts, get_retention_curves, and get_stickiness take no range. Only add filters that the dashboard\'s tools accept.',
+    `Definitions: ${glossary()}. Breadth = percent of the period's active users using a feature; frequency = days per week they use it. Each KPI carries its definition.`,
     "Layout: rows of a LargeCard and a MediumCard. An overview opens with the hero beside a MediumCard that explains it (InsightList with a limit, or a funnel), then the KpiStrip row. An InsightList always takes a limit of 3 or 4.",
     'Use a KPI tool\'s periodLabel as the DashboardHeader subtitle: DashboardHeader("Product health", kpis.periodLabel). KPI query defaults: {periodLabel: "", hero: {label: "Loading", value: "—"}, heroTrend: {labels: [], current: []}, metrics: []}.',
     'Charts by question, preferring the specific one when the question matches it: change over time → TrendChart (DAU/WAU/MAU, retention curves by plan with "All users" muted); per-period counts → ColumnChart; ranked categories → BarList; part-to-whole → ShareBar; when users are active → ActivityHeatmap(heat.days, heat.hourLabels) from get_activity_heatmap; which features to promote or retire → FeatureValue(features.features) or EngagementMatrix(features.features) from get_feature_engagement; on pace for the month → GoalPace(goal) from get_signup_goal; how users moved between lifecycle states → LifecycleFlow(states.flow) from get_lifecycle with view "states"; days an alert would fire → Tracker(alert.days) from preview_alert. Do not use LineChart, AreaChart, BarChart, or PieChart.',
@@ -353,7 +356,7 @@ export const analyticsKit: KitDefinition = {
     {
       title: "What changed and why",
       description:
-        "Pick a metric and the active rule: the computed explanation with tracking problems and holidays named first, its drivers by platform and plan, the product's other findings, and the walk from the prior period.",
+        "Pick a metric and the active rule: the computed explanation with tracking problems and holidays named first, its drivers by platform and plan, the product's other findings, and the walk from the prior period, last year, or plan.",
       program: WHAT_CHANGED,
     },
     {

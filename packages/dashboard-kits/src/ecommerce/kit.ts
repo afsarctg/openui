@@ -76,7 +76,7 @@ ${RANGE_FILTER}
 channelFilter = FilterSelect("channel", "Sales channel", [{value: "all", label: "All channels"}, {value: "online", label: "Online store"}, {value: "app", label: "Mobile app"}, {value: "amazon", label: "Amazon"}], $channel)
 ${COMPARE_FILTER}
 why = Query("explain_change", {metric: $why, range: $range, channel: $channel, compare: $compare}, ${WHY_DEFAULTS})
-insights = Query("get_store_insights", {range: $range, channel: $channel, compare: $compare}, {insights: []})
+insights = Query("get_store_insights", {range: $range, channel: $channel, compare: $compare, excluding: $why}, {insights: []})
 whyRow = CardRow([whyCard, insightCard])
 whyCard = LargeCard([whyHeader, drivers])
 whyHeader = DashboardCardHeader(why.value, why.metric, "number")
@@ -208,7 +208,7 @@ mapCard = LargeCard([mapHeader, productMap])
 mapHeader = DashboardCardHeader("Which products to push, restock, or reprice", "Sell-through against gross margin, sized by net sales, split at the medians")
 productMap = ProductQuadrant(catalog.products)
 stock = Query("get_inventory_health", {category: $category}, {metrics: [], items: [], catalog: [], concentration: ""})
-byCategory = Query("get_sales_by", {range: $range, dimension: "category"}, ${ITEMS_DEFAULTS})
+byCategory = Query("get_sales_by", {range: $range, customerType: $customer, dimension: "category"}, ${ITEMS_DEFAULTS})
 stockRow = CardRow([stockCard, alertsCard])
 stockCard = LargeCard([stockHeader, stockStrip, categoryChart])
 stockHeader = DashboardCardHeader("Inventory and category sales", "Stock position today, and daily sales by category for the period")
@@ -234,7 +234,7 @@ sizeGrid = ExchangeMatrix(returns.exchanges)
 returnedList = BarList(returns.products, "percent", 5, "Most returned, % of units")
 journey = Query("get_purchase_journey", {range: $range, device: $device}, {steps: [], conversionRate: "—"})
 checkout = Query("get_checkout_journey", {range: $range, device: $device}, {steps: [], checkoutCompletion: "—"})
-byDevice = Query("get_sales_by", {range: $range, dimension: "device"}, ${ITEMS_DEFAULTS})
+byDevice = Query("get_sales_by", {range: $range, customerType: $customer, dimension: "device"}, ${ITEMS_DEFAULTS})
 journeyRow = CardRow([journeyCard, checkoutCard, deviceCard])
 journeyCard = MediumCard([journeyHeader, journeyFunnel])
 journeyHeader = DashboardCardHeader(journey.conversionRate, "Purchase journey, session to purchase", "number")
@@ -474,5 +474,6 @@ export const ecommerceKit: KitDefinition = {
     "How valuable are the customers we acquired this year, and who is about to churn?",
     "Which products need restocking, and where do mobile shoppers drop off in checkout?",
     "When do orders come in, which products should we push or cut, and are we on pace for this month's sales goal?",
+    "Are we shipping orders on time, and which products get returned most?",
   ],
 };

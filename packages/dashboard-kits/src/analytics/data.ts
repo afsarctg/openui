@@ -82,6 +82,7 @@ type Input<N extends Tools[number]["name"]> = z.output<
 type Platform = "web" | "ios" | "android";
 type Plan = "free" | "team" | "business";
 type Active = "core" | "any";
+type Compare = Input<"get_usage_kpis">["compare"];
 
 /**
  * Days simulated: 12 months and the same 12 months a year earlier for the
@@ -96,6 +97,18 @@ const PRIOR_ONLY = "Against the prior period: sessions are kept 90 days";
 const USAGE_PLAN = { actives: 1.22, signups: 1.15, activation: 30 };
 /** Same weekdays 52 weeks earlier. */
 const LAST_YEAR = 364;
+/** What each comparison is called on charts, walks, and why-cards. */
+const COMPARISON_LABEL: Record<Compare, string> = {
+  previous_period: "Prior period",
+  last_year: "Last year",
+  plan: "Plan",
+};
+/** The comparison in a period label; the prior period goes unsaid. */
+const AGAINST_TEXT: Record<Compare, string | undefined> = {
+  previous_period: undefined,
+  last_year: "same days last year",
+  plan: "plan",
+};
 const SIGNUPS_PER_DAY = 520;
 
 /**
@@ -1138,13 +1151,16 @@ function monetisation(range: Range) {
   const now = funnelFor(0);
   const then = funnelFor(days);
   const trials = trialsFor(0);
-  // The last 12 weeks, each a 28-day window ending that week.
-  const weeks = Array.from({ length: 12 }, (_, k) => (11 - k) * 7);
+  // The weeks covering the period (at least 4, so there is a trend), each a
+  // 28-day window ending that week.
+  const count = Math.max(4, Math.ceil(days / 7));
+  const weeks = Array.from({ length: count }, (_, k) => (count - 1 - k) * 7);
   // Free to paid for workspaces created in the 28 days before each week's 90-day wait.
-  const freeToPaid = weeks.map((ago) => {
+  const freeToPaidAt = (ago: number) => {
     const f = funnelFor(ago + 90, 28);
     return (f.paid / f.created) * 100;
-  });
+  };
+  const freeToPaid = weeks.map(freeToPaidAt);
   const steps = [
     { label: "New workspaces", value: now.created, previous: then.created },
     { label: "Team active: 3+ members", value: now.team, previous: then.team },
@@ -1156,13 +1172,10 @@ function monetisation(range: Range) {
   const trialRate = (t: ReturnType<typeof trialsFor>) => (t.converted / t.ended) * 100;
   return {
     metrics: [
-      metric(
-        "free_to_paid",
-        freeToPaid[11]!,
-        freeToPaid[11 - Math.min(11, Math.round(days / 7))]!,
-        pct,
-        { series: freeToPaid, hint: FREE_TO_PAID_BAND.label },
-      ),
+      metric("free_to_paid", freeToPaid[count - 1]!, freeToPaidAt(Math.round(days / 7) * 7), pct, {
+        series: freeToPaid,
+        hint: FREE_TO_PAID_BAND.label,
+      }),
       metric("pqls", now.pql, then.pql, formatNumber, {
         series: weeks.map((ago) => funnelFor(ago, 28).pql),
       }),
@@ -1376,7 +1389,11 @@ function reviewMetrics(): ReviewMetric[] {
       label: "DAU/MAU",
       format: "percent",
       owner: "Product",
-      over: (from, to) => mean(span(from, to).map((d) => (at(pop.dau, d) / at(pop.mau, d)) * 100)),
+      // Average DAU ÷ average MAU, as the KPI tile and explain_change read it.
+      over: (from, to) =>
+        (mean(span(from, to).map((d) => at(pop.dau, d))) /
+          mean(span(from, to).map((d) => at(pop.mau, d)))) *
+        100,
       tolerance: 2,
     },
     {
@@ -1558,16 +1575,47 @@ function ghostUsers(
 }
 
 /**
- * Every platform side by side, whatever the platform filter: its share of
- * daily actives over the period, and activation for its signups, each against
- * the period before.
+ * Activation counts as new workspaces: about 55% of signups who set up start a
+ * new workspace (the rest join one); team activation is 3+ members active in
+ * its first 14 days.
  */
-function byPlatform(plan: string, days: number) {
+function workspaceCounts(c: ReturnType<typeof activationCounts>) {
+  const created = c.setup * 0.55;
+  const project = created * 0.88;
+  const active = created * Math.min(0.8, (c.aha / c.signed) * 1.45);
+  return {
+    signed: created,
+    setup: project,
+    aha: active,
+    habit: active * 0.74,
+    rate: active / created,
+  };
+}
+
+/**
+ * Every platform side by side, whatever the platform filter, against the
+ * period before. Users: its share of daily actives over the period, and
+ * activation for its signups. Workspaces: its share of new workspaces, by the
+ * platform they were created on, and their team activation.
+ */
+function byPlatform(plan: string, days: number, unit: "user" | "workspace" = "user") {
   const pfs = Object.keys(PLATFORMS) as Platform[];
-  const users = pfs.map((pf) => [0, days].map((o) => mean(dau(pf, plan, days, o))));
+  const counts = (pf: Platform, o: number) =>
+    unit === "workspace"
+      ? workspaceCounts(activationCounts(pf, plan, days, o))
+      : activationCounts(pf, plan, days, o);
+  const users = pfs.map((pf) =>
+    [0, days].map((o) =>
+      unit === "workspace" ? counts(pf, o).signed : mean(dau(pf, plan, days, o)),
+    ),
+  );
   const total = sum(users.map(([now]) => now!)) || 1;
   const change = (now: number, then: number) => round(((now - then) / (then || 1)) * 100, 1);
   return {
+    platformRule:
+      unit === "workspace"
+        ? "Each platform's share of new workspaces, by where they were created, and their team activation, against the prior period"
+        : "Each platform's share of daily actives, and activation for its signups, against the prior period",
     platformUsers: pfs.map((pf, k) => ({
       name: PLATFORM_LABEL[pf],
       key: pf,
@@ -1576,7 +1624,7 @@ function byPlatform(plan: string, days: number) {
       change: change(users[k]![0]!, users[k]![1]!),
     })),
     platformActivation: pfs.map((pf) => {
-      const [now, then] = [0, days].map((o) => activationCounts(pf, plan, days, o).rate * 100);
+      const [now, then] = [0, days].map((o) => counts(pf, o).rate * 100);
       return {
         name: PLATFORM_LABEL[pf],
         key: pf,
@@ -1712,15 +1760,38 @@ function releaseImpact() {
   });
 }
 
-function explainAnalytics({ metric, range, platform, plan, active }: Input<"explain_change">): Why {
+function explainAnalytics({
+  metric,
+  range,
+  platform,
+  plan,
+  active,
+  compare,
+}: Input<"explain_change">): Why {
   const days = RANGE_DAYS[range];
   const label = WHY_LABEL[metric];
   const rate = isRate(metric);
   const text = (v: number) => (rate ? `${v.toFixed(1)}%` : formatNumber(v));
   const signed = (v: number) =>
     rate ? formatPoints(v, 1) : `${v >= 0 ? "+" : "−"}${formatNumber(Math.abs(v))}`;
+  // The comparison window: the prior period, or last year's same weekdays,
+  // which the plan grows by its rates as get_usage_kpis does. Activation's
+  // plan is a flat rate, shared across segments in proportion to last year's
+  // rates; DAU/MAU's plan is last year's, as both sides grow alike.
+  const thenOffset = compare === "previous_period" ? days : LAST_YEAR;
+  const planScale =
+    compare !== "plan" || metric === "stickiness"
+      ? 1
+      : metric === "activation"
+        ? USAGE_PLAN.activation /
+          (whyValue(metric, platform, plan, active, days, LAST_YEAR) || USAGE_PLAN.activation)
+        : metric === "signups"
+          ? USAGE_PLAN.signups
+          : USAGE_PLAN.actives;
+  const valueThen = (pf: string, pl: string) =>
+    whyValue(metric, pf, pl, active, days, thenOffset) * planScale;
   const value = whyValue(metric, platform, plan, active, days, 0);
-  const comparison = whyValue(metric, platform, plan, active, days, days);
+  const comparison = valueThen(platform, plan);
   const total = value - comparison;
   const candidates: (Driver & { value: number })[] = [];
   const driver = (
@@ -1745,7 +1816,8 @@ function explainAnalytics({ metric, range, platform, plan, active }: Input<"expl
   let tracking = 0;
   if (active === "any" && (metric === "wau" || metric === "dau")) {
     tracking =
-      ghostUsers(metric, platform, plan, days, 0) - ghostUsers(metric, platform, plan, days, days);
+      ghostUsers(metric, platform, plan, days, 0) -
+      ghostUsers(metric, platform, plan, days, thenOffset) * planScale;
     if (Math.abs(tracking) >= Math.abs(total) * 0.05 && Math.abs(tracking) >= 1) {
       const bug = PRODUCT_EVENTS.find((e) => e.id === "ios-duplicate-events")!;
       dataQuality = `${signed(tracking)} of the change is the ${bug.label} on ${dateLabel(bug.from)}–${dateLabel(bug.to)}, which counted iOS users who never opened the app. Core-action numbers are unaffected.`;
@@ -1766,10 +1838,10 @@ function explainAnalytics({ metric, range, platform, plan, active }: Input<"expl
     // Rates split into mix (which platforms and plans the users come from) and rate (each one's own).
     const split = mixAndRate(
       segments(platform, plan).map(([pf, pl]) => {
-        const pair = (offset: number) => {
+        const pair = (offset: number, scale = 1) => {
           if (metric === "activation") {
             const c = activationCounts(pf, pl, days, offset);
-            return { n: c.aha * 100, d: c.setup };
+            return { n: c.aha * 100 * scale, d: c.setup };
           }
           return {
             n: mean(actives(1, pf, pl, active, days, offset)) * 100,
@@ -1777,7 +1849,7 @@ function explainAnalytics({ metric, range, platform, plan, active }: Input<"expl
           };
         };
         const now = pair(0);
-        const then = pair(days);
+        const then = pair(thenOffset, planScale);
         return {
           key: `${pf}:${pl}`,
           label: `${PLATFORM_LABEL[pf]} ${PLANS[pl].label}`,
@@ -1816,7 +1888,7 @@ function explainAnalytics({ metric, range, platform, plan, active }: Input<"expl
             label:
               dimension === "platform" ? PLATFORM_LABEL[key as Platform] : PLANS[key as Plan].label,
             current: whyValue(metric, pf, pl, active, days, 0),
-            comparison: whyValue(metric, pf, pl, active, days, days),
+            comparison: valueThen(pf, pl),
           };
         }),
       );
@@ -1839,7 +1911,7 @@ function explainAnalytics({ metric, range, platform, plan, active }: Input<"expl
       whyValue(metric, platform, plan, active, days, (k + 1) * days) -
       whyValue(metric, platform, plan, active, days, (k + 2) * days),
   );
-  const sure = confidence(total, past, comparison);
+  const sure = confidence(total, past, comparison, { centre: compare === "previous_period" });
   const explained = sure.level !== "Low";
   const pick = (sameSign: boolean, limit: number) => {
     const perDimension = new Map<string, number>();
@@ -1857,23 +1929,36 @@ function explainAnalytics({ metric, range, platform, plan, active }: Input<"expl
   const drivers = explained ? pick(true, 4) : [];
   const offsetting = explained ? pick(false, 3) : [];
   const change = comparison === 0 ? 0 : (total / Math.abs(comparison)) * 100;
-  // A holiday in the earlier window makes this one look better than it is.
-  const holiday = PRODUCT_EVENTS.find(
-    (e) => e.kind === "holiday" && e.to >= days && e.from < days * 2,
-  );
+  // A holiday in the prior period makes this one look better than it is; one
+  // in this period, against last year's ordinary weeks, makes it look worse.
+  const holidays = PRODUCT_EVENTS.filter((e) => e.kind === "holiday");
+  const holidayThen =
+    compare === "previous_period"
+      ? holidays.find((e) => e.to >= days && e.from < days * 2)
+      : undefined;
+  const holidayNow =
+    compare === "previous_period" ? undefined : holidays.find((e) => e.from < days);
   // A launch inside this period is evidence worth naming, not a proven cause.
   const launch = PRODUCT_EVENTS.find((e) => e.kind === "launch" && e.from < days);
   const size = rate ? `${Math.abs(total).toFixed(1)} pts` : formatNumber(Math.abs(total));
   const top = dataQuality ? undefined : drivers[0];
+  const move = `${size} (${Math.abs(change).toFixed(1)}%)`;
+  const head =
+    compare === "plan"
+      ? `${move} ${total >= 0 ? "above" : "below"} plan`
+      : `${total >= 0 ? "up" : "down"} ${move} ${compare === "last_year" ? "on the same days last year" : `on the prior ${days} days`}`;
   const summary = [
-    `${label} ${metric === "signups" ? "are" : "is"} ${total >= 0 ? "up" : "down"} ${size} (${Math.abs(change).toFixed(1)}%) on the prior ${days} days.`,
+    `${label} ${metric === "signups" ? "are" : "is"} ${head}.`,
     !explained
       ? `${sure.note}, so no single cause stands out.`
       : top
         ? `The biggest driver is ${top.name} (${top.dimension.toLowerCase()}): ${top.delta}, ${Math.round(Math.abs(top.share) * 100)}% of the change.`
         : "",
     dataQuality ?? "",
-    holiday ? `The prior period includes the ${holiday.label}, which lowers the comparison.` : "",
+    holidayThen
+      ? `The prior period includes the ${holidayThen.label}, which lowers the comparison.`
+      : "",
+    holidayNow ? `This period includes the ${holidayNow.label}, which lowers it.` : "",
     launch && explained && (metric === "activation" || metric === "wau")
       ? `${launch.label} shipped on ${dateLabel(launch.from)}, inside this period.`
       : "",
@@ -1882,8 +1967,8 @@ function explainAnalytics({ metric, range, platform, plan, active }: Input<"expl
     .join(" ");
   return {
     metric: label,
-    periodLabel: periodLabel(range),
-    comparisonLabel: "Prior period",
+    periodLabel: periodLabel(range, AGAINST_TEXT[compare]),
+    comparisonLabel: COMPARISON_LABEL[compare],
     value: text(value),
     comparison: text(comparison),
     delta: signed(total),
@@ -1894,7 +1979,7 @@ function explainAnalytics({ metric, range, platform, plan, active }: Input<"expl
     drivers,
     offsetting,
     walk: walkOf(
-      { label: "Prior period", value: comparison },
+      { label: COMPARISON_LABEL[compare], value: comparison },
       walkSteps,
       { label: "This period", value },
       Math.abs(total) * 0.005,
@@ -1997,6 +2082,22 @@ const FEATURES = [
   { name: "Guest access", breadth: 8, frequency: 1.4, mobile: 0.6, gap: 10, adjusted: 4 },
 ];
 
+/**
+ * How a feature's numbers scale from a 30-day window to `days` (our model).
+ * Active users grow sublinearly with the window (7 days is about half of 30,
+ * 90 days about 1.4×); a feature's breadth among them follows each user's
+ * chance of using it at least once, 1 − (1 − monthly)^reach; and frequency
+ * among its users falls as longer windows take in occasional users.
+ */
+function featureSpan(days: number) {
+  const t = days / 30;
+  return {
+    actives: t < 1 ? t ** 0.45 : t ** 0.3,
+    reach: t ** 0.3,
+    frequency: t ** -0.08,
+  };
+}
+
 const EVENTS = [
   { name: "board_viewed", perUser: 9.4, reach: 0.9 },
   { name: "task_updated", perUser: 6.1, reach: 0.78 },
@@ -2048,7 +2149,7 @@ export const analyticsHandlers: Record<string, (args: any) => unknown> = {
     const then = lastYear ? LAST_YEAR : days;
     const grow = (values: number[], rate: number) =>
       planned ? values.map((v) => v * rate) : values;
-    const against = { previous_period: undefined, last_year: "Last year", plan: "Plan" }[compare];
+    const against = compare === "previous_period" ? undefined : COMPARISON_LABEL[compare];
     const any = active === "any";
     const w = (window: 1 | 7 | 28, offset = 0) =>
       actives(window, platform, plan, active, days, offset);
@@ -2102,11 +2203,9 @@ export const analyticsHandlers: Record<string, (args: any) => unknown> = {
       ...(against ? { comparisonLabel: against } : {}),
     });
     const stick = daily.map((d, k) => d.map((v, i) => (v / monthly[k]![i]!) * 100));
+    const stickiness = (k: number) => (mean(daily[k]!) / mean(monthly[k]!)) * 100;
     return {
-      periodLabel: periodLabel(
-        range,
-        planned ? "plan" : lastYear ? "same days last year" : undefined,
-      ),
+      periodLabel: periodLabel(range, AGAINST_TEXT[compare]),
       hero: metric(any ? "wau_any" : "wau", mean(wau[0]!), mean(wau[1]!), formatNumber, {
         series: wau[0],
         hint: ruleFor(active, "rolling 7 days"),
@@ -2120,10 +2219,9 @@ export const analyticsHandlers: Record<string, (args: any) => unknown> = {
         asOf: AS_OF,
         partial: true,
         ...(against ? { comparisonLabel: against } : {}),
-        // The lead: explain_change's sentence, which reads against the prior period only.
-        ...(compare === "previous_period"
-          ? { summary: explainAnalytics({ metric: "wau", range, platform, plan, active }).summary }
-          : {}),
+        // The lead: explain_change's sentence, on the same comparison.
+        summary: explainAnalytics({ metric: "wau", range, platform, plan, active, compare })
+          .summary,
       },
       metrics: [
         metric(any ? "dau_any" : "dau", mean(daily[0]!), mean(daily[1]!), formatNumber, {
@@ -2134,7 +2232,9 @@ export const analyticsHandlers: Record<string, (args: any) => unknown> = {
           ...series(monthly),
           chart: "number",
         }),
-        metric("stickiness", mean(stick[0]!), mean(stick[1]!), pct, {
+        // DAU/MAU as the glossary defines it: the period's average DAU ÷ its
+        // average MAU, as explain_change reads it; the series is each day's.
+        metric("stickiness", stickiness(0), stickiness(1), pct, {
           ...series(stick),
           hint: "SaaS average 15%, good 20%, great 30%",
           chart: "percent",
@@ -2354,21 +2454,7 @@ export const analyticsHandlers: Record<string, (args: any) => unknown> = {
       activationCounts(platform, plan, days),
       activationCounts(platform, plan, days, days),
     ];
-    // Workspaces: about 55% of signups who set up start a new workspace (the
-    // rest join one); team activation is 3+ members active in its first 14 days.
-    const team = (c: (typeof userCounts)[number]) => {
-      const created = c.setup * 0.55;
-      const project = created * 0.88;
-      const active = created * Math.min(0.8, (c.aha / c.signed) * 1.45);
-      return {
-        signed: created,
-        setup: project,
-        aha: active,
-        habit: active * 0.74,
-        rate: active / created,
-      };
-    };
-    const [cur, prev] = unit === "workspace" ? userCounts.map(team) : userCounts;
+    const [cur, prev] = unit === "workspace" ? userCounts.map(workspaceCounts) : userCounts;
     // Validity: the aha moment matters if activated users keep at least twice
     // as well. Read on the cohort that signed up five weeks ago.
     const check = cohort(platform, plan, 5 * 7 - 1);
@@ -2403,7 +2489,7 @@ export const analyticsHandlers: Record<string, (args: any) => unknown> = {
         pass: a / n >= 2,
         note: `Week-4 retention is ${(a * 100).toFixed(0)}% for activated users against ${(n * 100).toFixed(0)}% for the rest: ${(a / n).toFixed(1)}×, ${a / n >= 2 ? "so the aha moment predicts who stays" : "under the 2× bar, so look for a better aha moment"}.`,
       },
-      ...byPlatform(plan, days),
+      ...byPlatform(plan, days, unit),
     };
   },
 
@@ -2434,8 +2520,10 @@ export const analyticsHandlers: Record<string, (args: any) => unknown> = {
   },
 
   get_retention_curves({ platform, weeks, mode, unit }: Input<"get_retention_curves">) {
+    // Brackets as the cohorts read them: only those the curve's weeks reach.
+    const brackets = mode === "bracket" ? BRACKETS.filter(([, to]) => to <= weeks) : undefined;
     const curve = (plan: string) =>
-      retentionRow(platform, plan, (weeks + 1) * 7 - 1, mode, unit)
+      retentionRow(platform, plan, (weeks + 1) * 7 - 1, mode, unit, brackets)
         .values.slice(0, weeks + 1)
         .map((v) => round(v * 100, 1));
     const curves = {
@@ -2449,14 +2537,19 @@ export const analyticsHandlers: Record<string, (args: any) => unknown> = {
     );
     const everyone = unit === "workspace" ? "All workspaces" : "All users";
     return {
-      labels: Array.from({ length: weeks + 1 }, (_, i) => `Week ${i}`),
+      labels: brackets
+        ? brackets.map(([from, to]) => (from === to ? `Week ${from}` : `Weeks ${from}–${to}`))
+        : Array.from({ length: weeks + 1 }, (_, i) => `Week ${i}`),
       ...curves,
       // Unbounded counts later weeks, so a curve's last week always equals
-      // exact retention: read flattening on exact weeks only.
+      // exact retention, and brackets span several weeks: read flattening on
+      // exact weeks only.
       flattened:
         mode === "exact"
           ? `${everyone} ${flattening(curves.all)}. ${reads.join("; ")}.`
-          : "Unbounded counts any later week, so the newest weeks always drop; read flattening on exact weeks.",
+          : mode === "bracket"
+            ? "Brackets span several weeks each; read flattening on exact weeks."
+            : "Unbounded counts any later week, so the newest weeks always drop; read flattening on exact weeks.",
       rule: retentionRule(mode, unit),
     };
   },
@@ -2475,24 +2568,33 @@ export const analyticsHandlers: Record<string, (args: any) => unknown> = {
 
   get_feature_engagement({ range, platform, plan }: Input<"get_feature_engagement">) {
     const mobile = platform === "ios" || platform === "android";
-    const mau = mean(dau(platform, plan, 28)) * mauRatio(platform, plan);
+    const span = featureSpan(RANGE_DAYS[range]);
+    const active = mean(dau(platform, plan, 28)) * mauRatio(platform, plan) * span.actives;
     const engagement = factor(platform, plan, "retention");
     return {
       features: FEATURES.map((f) => {
-        const breadth = Math.min(
-          98,
-          f.breadth *
-            (mobile ? f.mobile : 1) *
-            engagement ** 0.4 *
-            between(`fb:${f.name}:${platform}:${plan}`, 0.94, 1.06),
-        );
+        const monthly =
+          Math.min(
+            98,
+            f.breadth *
+              (mobile ? f.mobile : 1) *
+              engagement ** 0.4 *
+              between(`fb:${f.name}:${platform}:${plan}`, 0.94, 1.06),
+          ) / 100;
+        const breadth = Math.min(98, (1 - (1 - monthly) ** span.reach) * 100);
         return {
           name: f.name,
           breadth: round(breadth),
           frequency: round(
-            f.frequency * engagement ** 0.3 * between(`ff:${f.name}:${platform}`, 0.93, 1.07),
+            Math.min(
+              7,
+              f.frequency *
+                engagement ** 0.3 *
+                between(`ff:${f.name}:${platform}`, 0.93, 1.07) *
+                span.frequency,
+            ),
           ),
-          users: Math.round((mau * breadth) / 100),
+          users: Math.round((active * breadth) / 100),
           retentionGap: round(f.gap * between(`fg:${f.name}:${platform}:${plan}`, 0.9, 1.1)),
           adjustedGap: round(f.adjusted * between(`fa:${f.name}:${platform}:${plan}`, 0.9, 1.1)),
           change: round(
@@ -2959,21 +3061,36 @@ export const analyticsHandlers: Record<string, (args: any) => unknown> = {
     };
   },
 
-  get_product_insights({ range, platform, plan }: Input<"get_product_insights">) {
+  get_product_insights({
+    range,
+    platform,
+    plan,
+    compare,
+    excluding,
+  }: Input<"get_product_insights">) {
     const days = RANGE_DAYS[range];
     const insights: Insight[] = [];
     const why = (metric: WhyMetric) =>
-      explainAnalytics({ metric, range, platform, plan, active: "core" });
+      explainAnalytics({ metric, range, platform, plan, active: "core", compare });
+    const against =
+      compare === "plan"
+        ? "against plan"
+        : compare === "last_year"
+          ? "on the same days last year"
+          : `on the prior ${days} days`;
 
-    const wau = why("wau");
-    insights.push(periodChangeInsight(wau, "Weekly active users", `on the prior ${days} days`));
+    // Beside explain_change, its metric's period change is already the lead.
+    if (excluding !== "wau") {
+      const wau = why("wau");
+      insights.push(periodChangeInsight(wau, "Weekly active users", against));
+    }
 
     const activation = why("activation");
-    if (activation.confidence.level !== "Low") {
+    if (excluding !== "activation" && activation.confidence.level !== "Low") {
       insights.push({
         tone: activation.tone === "bad" ? "negative" : "positive",
         kind: activation.tone === "bad" ? "top_detractor" : "top_driver",
-        title: `Activation ${activation.change >= 0 ? "up" : "down"} ${activation.delta}`,
+        title: `Activation ${activation.change >= 0 ? "up" : "down"} ${activation.delta} ${against}`,
         detail: activation.summary.split(". ").slice(1).join(". "),
         metric: activation.value,
       });
@@ -3024,13 +3141,20 @@ export const analyticsHandlers: Record<string, (args: any) => unknown> = {
         "It lowered mobile weekly active rate by 4.2% (95% CI −7.4% to −1.0%) and was rolled back.",
       metric: "−4.2%",
     });
-    insights.push({
-      tone: "info",
-      title: "Automations is a power feature",
-      detail:
-        "Only 17% of monthly users try it, but they use it 4.3 days a week. Surfacing it in the Team plan trial could widen its reach.",
-      metric: "4.3 d/wk",
-    });
+    // Read from the same engagement the feature cards show, so the figures agree.
+    const automations = (
+      analyticsHandlers.get_feature_engagement!({ range, platform, plan }) as {
+        features: { name: string; breadth: number; frequency: number }[];
+      }
+    ).features.find((f) => f.name === "Automations");
+    if (automations) {
+      insights.push({
+        tone: "info",
+        title: "Automations is a power feature",
+        detail: `Only ${automations.breadth.toFixed(0)}% of the period's active users try it, but they use it ${automations.frequency.toFixed(1)} days a week. Surfacing it in the Team plan trial could widen its reach.`,
+        metric: `${automations.frequency.toFixed(1)} d/wk`,
+      });
+    }
     const holiday = PRODUCT_EVENTS.find((e) => e.kind === "holiday")!;
     if (holiday.to < days * 2) {
       insights.push({

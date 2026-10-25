@@ -237,7 +237,15 @@ export const AdBudgetPacing = defineComponent({
   }),
   component: ({ props }) => {
     const budgets = (props.budgets ?? []) as unknown as AdBudget[];
-    if (budgets.length === 0) return <Pending kind="table" rows={3} />;
+    // Only Amazon alone has no budgets: ad spend drives the store and app (see get_targets).
+    if (budgets.length === 0)
+      return (
+        <Pending
+          kind="table"
+          rows={3}
+          empty="No ad budgets: ads here drive the online store and app, and Amazon's selling costs are its fees."
+        />
+      );
     return (
       <div className="kit-scroll">
         <table className="kit-table kit-commits">

@@ -142,6 +142,21 @@ describe("the sample store adds up", () => {
 /** A whole-dollar ledger line formatted, allowing for its own rounding. */
 const nearly = (value: number) => [value - 1, value, value + 1].map(formatCurrency);
 
+describe("sales by device", () => {
+  it("has no device split for Amazon alone, and shares that sum to 1 otherwise", () => {
+    for (const range of RANGES) {
+      const amazon = run("get_sales_by", { range, channel: "amazon", dimension: "device" });
+      expect(amazon.items).toEqual([]);
+      expect(amazon.overTime).toEqual({ labels: [], series: [] });
+      for (const channel of ["all", "online", "app"]) {
+        const { items } = run("get_sales_by", { range, channel, dimension: "device" });
+        const shares = total(items.map((i: { share: number }) => i.share));
+        expect(shares, `${range} ${channel}`).toBeCloseTo(1, 2);
+      }
+    }
+  });
+});
+
 describe("the profit bridge", () => {
   const COMPARES = ["previous_period", "last_year", "plan"] as const;
 
@@ -245,6 +260,51 @@ describe("explain_change", () => {
     expect(why.summary).toMatch(/pts/);
   });
 
+  it("says the same value and comparison as the KPI tiles, for every filter", () => {
+    const TILE: Record<string, string> = {
+      total_sales: "Total sales",
+      orders: "Orders",
+      aov: "Average order value",
+      conversion_rate: "Conversion rate",
+    };
+    for (const range of RANGES)
+      for (const channel of CHANNELS)
+        for (const compare of ["previous_period", "last_year", "plan"]) {
+          const at = `${range} ${channel} ${compare}`;
+          const kpis = run("get_store_kpis", { range, channel, compare });
+          const profit = run("explain_change", {
+            metric: "contribution_profit",
+            range,
+            channel,
+            compare,
+          });
+          expect(profit.value, at).toBe(kpis.hero.value);
+          expect(profit.comparison, at).toBe(kpis.hero.previous);
+          for (const [metric, label] of Object.entries(TILE)) {
+            const tile = kpis.metrics.find((k: Kpi) => k.label === label);
+            const why = run("explain_change", { metric, range, channel, compare });
+            expect(why.value, `${metric} ${at}`).toBe(tile.value);
+            expect(why.comparison, `${metric} ${at}`).toBe(tile.previous ?? "—");
+          }
+        }
+  });
+
+  it("does not explain conversion rate for Amazon, which has no store sessions", () => {
+    for (const compare of ["previous_period", "last_year", "plan"]) {
+      const why = run("explain_change", {
+        metric: "conversion_rate",
+        range: "30d",
+        channel: "amazon",
+        compare,
+      });
+      expect(why.value).toBe("—");
+      expect(why.summary).toMatch(/not tracked for Amazon/);
+      expect(why.summary).not.toMatch(/0\.00/);
+      expect(why.walk).toEqual([]);
+      expect(why.drivers).toEqual([]);
+    }
+  });
+
   it("finds the post-sale week unusual and does not explain a flat quarter", () => {
     const week = run("explain_change", { metric: "total_sales", range: "7d" });
     expect(week.tone).toBe("bad");
@@ -300,6 +360,48 @@ describe("new and returning customers", () => {
       );
       expect(flow.lapsed.every((v: number) => v <= 0)).toBe(true);
     }
+  });
+});
+
+describe("store insights beside DriverCards", () => {
+  // The insight that already says each metric's change; orders and AOV have none.
+  const ABOUT: Record<string, string[]> = {
+    contribution_profit: ["top_driver", "top_detractor"],
+    total_sales: ["period_change"],
+    conversion_rate: ["data_quality"],
+    orders: [],
+    aov: [],
+  };
+
+  it("leaves out only the change explain_change explains, for every filter", () => {
+    for (const range of RANGES)
+      for (const channel of CHANNELS)
+        for (const compare of ["previous_period", "last_year", "plan"])
+          for (const [metric, kinds] of Object.entries(ABOUT)) {
+            const args = { range, channel, compare };
+            const all = run("get_store_insights", args).insights;
+            const rest = run("get_store_insights", { ...args, excluding: metric }).insights;
+            const label = `${metric} ${range} ${channel} ${compare}`;
+            const kept = all.filter((i: { kind?: string }) => !kinds.includes(i.kind ?? ""));
+            expect(
+              rest.some((i: { kind?: string }) => kinds.includes(i.kind ?? "")),
+              label,
+            ).toBe(false);
+            // Everything else stays, in order; the cap of 8 can let one more in.
+            expect(rest.slice(0, kept.length), label).toEqual(kept);
+          }
+  });
+
+  it("leads with profit unless the cards already explain it", () => {
+    const first = (excluding?: string) =>
+      run("get_store_insights", { range: "30d", compare: "plan", excluding }).insights[0];
+    expect(["top_driver", "top_detractor"]).toContain(first().kind);
+    expect(["top_driver", "top_detractor"]).not.toContain(first("contribution_profit").kind);
+  });
+
+  it("the What changed program leaves the explained metric out of its list", () => {
+    const { program } = ecommerceKit.gallery.find((g) => g.title === "What changed and why")!;
+    expect(program).toMatch(/Query\("get_store_insights", \{[^}]*excluding: \$why[^}]*\}/);
   });
 });
 
@@ -474,6 +576,15 @@ describe("targets and usual ranges", () => {
     }
     expect(run("get_targets", { channel: "amazon" }).budgets).toEqual([]);
   });
+
+  it("has no ad budgets for Amazon: ads drive the store and app, and Amazon's costs are fees", () => {
+    expect(run("get_targets", { channel: "amazon" }).budgets).toEqual([]);
+    const { lines } = run("get_profit_bridge", { range: "30d", channel: "amazon" });
+    const line = (label: string) => lines.find((l: { label: string }) => l.label === label);
+    expect(Math.abs(line("Ad spend").value)).toBe(0);
+    expect(Math.abs(line("Other marketing").value)).toBe(0);
+    expect(Math.abs(line("Fees").value)).toBeGreaterThan(0);
+  });
 });
 
 describe("orders by hour", () => {
@@ -531,6 +642,28 @@ describe("segments and products", () => {
     }
     const beanie = products.find((p: { sku: string }) => p.sku === "ACC-BEA-03");
     expect(beanie.sellThrough).toBe(1);
+  });
+
+  it("splits category and device sales by customer type", () => {
+    for (const dimension of ["category", "device"]) {
+      const sales = (customerType: string) =>
+        total(run("get_sales_by", { range: "30d", dimension, customerType }).totalSales);
+      expect(sales("new"), dimension).toBeLessThan(sales("all"));
+      expect(sales("returning"), dimension).toBeLessThan(sales("all"));
+      expect(sales("new"), dimension).not.toBe(sales("returning"));
+    }
+  });
+
+  it("passes the Customers filter to every query that takes it", () => {
+    const takes = new Set(
+      ecommerceKit.tools.filter((t) => "customerType" in t.input.shape).map((t) => t.name),
+    );
+    for (const { title, program } of ecommerceKit.gallery) {
+      if (!program.includes("$customer")) continue;
+      for (const [, tool, args] of program.matchAll(/Query\("(\w+)", (\{[^}]*\})/g))
+        if (takes.has(tool!))
+          expect(args, `${title}: ${tool}`).toContain("customerType: $customer");
+    }
   });
 });
 

@@ -2387,6 +2387,9 @@ function salesBy({ range, channel, dimension, customerType: type }: Input<"get_s
   }
   if (dimension === "device") {
     const storefront = chs.filter((c) => STOREFRONT.includes(c));
+    // Devices are tracked on the store and app only: Amazon alone has no split,
+    // rather than three parts of zero with no share between them.
+    if (!storefront.length) return { labels: [], items: [], totalSales: [], orders: [] };
     const sales = sum(current(storefront, "total", range, type));
     const orders = sum(current(storefront, "orders", range, type));
     const devices = Object.values(DEVICES);
@@ -2481,7 +2484,9 @@ const whyText = (metric: WhyMetric) =>
       ? (v: number) => `${v.toFixed(2)}%`
       : metric === "aov"
         ? formatCurrency
-        : (v: number) => formatCurrency(Math.round(v));
+        : // Whole dollars below $1,000; above it the same text as the KPI tiles, so
+          // $51,949.6 reads "$51.9K" here too (rounding first made it "$52.0K").
+          (v: number) => formatCurrency(Math.abs(v) < 1_000 ? Math.round(v) : v);
 const whySigned = (metric: WhyMetric) => (v: number) =>
   metric === "conversion_rate"
     ? formatPoints(v, 2)
@@ -2751,6 +2756,28 @@ function explain({ metric, range, channel, compare }: Input<"explain_change">): 
       : compare === "last_year"
         ? "the same days last year"
         : `the prior ${days} days`;
+
+  // Conversion rate counts store and app sessions; Amazon has none, so there is
+  // nothing to explain (the KPI tile shows "—", "Not tracked for Amazon").
+  if (metric === "conversion_rate" && !chs.some((c) => STOREFRONT.includes(c))) {
+    return {
+      metric: label,
+      periodLabel: periodLabel(range, AGAINST_TEXT[compare]),
+      comparisonLabel: COMPARISON_LABEL[compare],
+      value: "—",
+      comparison: "—",
+      delta: "",
+      change: 0,
+      tone: "neutral",
+      confidence: { level: "Low", z: 0, note: "Not tracked for Amazon" },
+      summary:
+        "Conversion rate is not tracked for Amazon: the store sees no Amazon sessions. Pick the online store, the app, or all channels.",
+      drivers: [],
+      offsetting: [],
+      walk: [],
+      format: WHY_FORMAT[metric],
+    };
+  }
 
   let value: number;
   let comparison: number;
@@ -3196,7 +3223,9 @@ export const ecommerceHandlers: Record<string, (args: any) => unknown> = {
           : channelsFor(args.channel);
     return {
       ...breakdown,
-      overTime: splitOverTime(args.range, parts, breakdown.items, args.customerType),
+      overTime: breakdown.items.length
+        ? splitOverTime(args.range, parts, breakdown.items, args.customerType)
+        : { labels: [], series: [] },
     };
   },
 
@@ -4015,15 +4044,17 @@ export const ecommerceHandlers: Record<string, (args: any) => unknown> = {
     };
   },
 
-  get_store_insights({ range, channel, compare }: Input<"get_store_insights">) {
+  get_store_insights({ range, channel, compare, excluding }: Input<"get_store_insights">) {
     const chs = channelsFor(channel);
     const days = RANGE_DAYS[range];
     const insights: Insight[] = [];
     const why = (metric: WhyMetric) => explain({ metric, range, channel, compare });
+    // A list beside DriverCards leaves out the change those cards already explain.
+    const shown = (metric: WhyMetric) => metric !== excluding;
 
     // Profit first: what moved it, from the explain engine.
     const profit = why("contribution_profit");
-    if (profit.confidence.level !== "Low" && profit.drivers[0]) {
+    if (shown("contribution_profit") && profit.confidence.level !== "Low" && profit.drivers[0]) {
       const top = profit.drivers[0];
       insights.push({
         tone: profit.tone === "good" ? "positive" : "negative",
@@ -4035,7 +4066,7 @@ export const ecommerceHandlers: Record<string, (args: any) => unknown> = {
     }
 
     // A tracking change can make conversion look better than it is.
-    if (chs.some((c) => STOREFRONT.includes(c))) {
+    if (shown("conversion_rate") && chs.some((c) => STOREFRONT.includes(c))) {
       const conversion = why("conversion_rate");
       if (conversion.dataQuality) {
         insights.push({
@@ -4049,13 +4080,14 @@ export const ecommerceHandlers: Record<string, (args: any) => unknown> = {
     }
 
     const sales = why("total_sales");
-    insights.push(
-      periodChangeInsight(
-        sales,
-        "Total sales",
-        `against ${compare === "previous_period" ? `the prior ${days} days` : sales.comparisonLabel.toLowerCase()}`,
-      ),
-    );
+    if (shown("total_sales"))
+      insights.push(
+        periodChangeInsight(
+          sales,
+          "Total sales",
+          `against ${compare === "previous_period" ? `the prior ${days} days` : sales.comparisonLabel.toLowerCase()}`,
+        ),
+      );
 
     const runner = inventory().find((i) => i.sku === "FTW-TRL-01")!;
     const bestseller = productSales(range, channel).sort((a, b) => b.revenue - a.revenue)[0];

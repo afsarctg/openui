@@ -177,7 +177,7 @@ export const PowerUserCurve = defineComponent({
 export const EngagementMatrix = defineComponent({
   name: "EngagementMatrix",
   description:
-    "Feature engagement matrix: each feature a bubble placed by breadth (percent of monthly active users) and frequency (days used per week), sized by users, split at the medians into Core, Power, Broad but infrequent, and Review or retire.",
+    "Feature engagement matrix: each feature a bubble placed by breadth (percent of the period's active users) and frequency (days used per week), sized by users, split at the medians into Core, Power, Broad but infrequent, and Review or retire.",
   props: z.object({
     features: z.array(passed("A feature from get_feature_engagement")).default([]),
   }),
@@ -195,7 +195,7 @@ export const EngagementMatrix = defineComponent({
           change: { text: formatPoints(f.change), good: f.change >= 0 },
         }))}
         x={{
-          title: "Breadth: % of monthly active users",
+          title: "Breadth: % of active users",
           domain: [0, 100],
           ticks: [0, 25, 50, 75, 100],
           format: (t) => `${t}%`,
@@ -213,7 +213,7 @@ export const EngagementMatrix = defineComponent({
           lowLow: "Review or retire",
         }}
         describe={(p) => [
-          { name: "of monthly users", value: `${p.x}%` },
+          { name: "of active users", value: `${p.x}%` },
           { name: "days per week", value: `${p.y}` },
           { name: "users", value: formatNumber(p.size) },
         ]}
@@ -222,7 +222,7 @@ export const EngagementMatrix = defineComponent({
   },
 });
 
-/** Our rule: 30% of monthly users is broad; 5 points of retention among activated users matters. */
+/** Our rule: 30% of active users is broad; 5 points of retention among activated users matters. */
 const VALUE_SPLIT = { x: 30, y: 5 };
 
 export const FeatureValue = defineComponent({
@@ -246,7 +246,7 @@ export const FeatureValue = defineComponent({
             size: f.frequency,
           }))}
           x={{
-            title: "Breadth: % of monthly active users",
+            title: "Breadth: % of active users",
             domain: [0, 100],
             ticks: [0, 25, 50, 75, 100],
             format: (t) => `${t}%`,
@@ -268,7 +268,7 @@ export const FeatureValue = defineComponent({
           describe={(p) => {
             const f = features.find((x) => x.name === p.name)!;
             return [
-              { name: "of monthly users", value: `${p.x}%` },
+              { name: "of active users", value: `${p.x}%` },
               { name: "retention gap, activated", value: formatPoints(f.adjustedGap) },
               { name: "retention gap, everyone", value: formatPoints(f.retentionGap) },
               { name: "days a week", value: `${p.size}` },
@@ -289,7 +289,7 @@ export const FeatureValue = defineComponent({
 export const FeatureAdoption = defineComponent({
   name: "FeatureAdoption",
   description:
-    "Feature adoption as ranked bars: percent of monthly active users who used each feature, with user counts, days per week, and the change in percentage points.",
+    "Feature adoption as ranked bars: percent of the period's active users who used each feature, with user counts, days per week, and the change in percentage points.",
   props: z.object({
     features: z.array(passed("A feature from get_feature_engagement")).default([]),
     limit: z.number().optional(),

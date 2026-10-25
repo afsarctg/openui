@@ -49,7 +49,9 @@ const rule = z
 export const featureSchema = z
   .object({
     name: z.string(),
-    breadth: z.number().describe("Percent of monthly active users who used the feature, 0–100"),
+    breadth: z
+      .number()
+      .describe("Percent of the period's active users who used the feature, 0–100"),
     frequency: z.number().describe("Average days per week the feature is used, among its users"),
     users: z.number(),
     retentionGap: z
@@ -208,7 +210,7 @@ export const analyticsTools = [
   defineTool({
     name: "get_monetization",
     description:
-      'Free to paid: KPIs, the workspace funnel (new, team active, product-qualified, paying, expanded), Business trial outcomes, Free plan limits by weekly hits and upgrade rate, and weekly free-to-paid against its benchmark band. ConversionFunnel(money.funnel), PaywallMatrix(money.paywalls), BarList(money.trials, "number"), TrendChart(money.labels, [{name: "Free to paid", values: money.freeToPaid}], "percent", "line", [], false, money.band).',
+      'Free to paid: KPIs, the workspace funnel (new, team active, product-qualified, paying, expanded), Business trial outcomes, Free plan limits by weekly hits and upgrade rate, and free-to-paid for each week of the period against its benchmark band. ConversionFunnel(money.funnel), PaywallMatrix(money.paywalls), BarList(money.trials, "number"), TrendChart(money.labels, [{name: "Free to paid", values: money.freeToPaid}], "percent", "line", [], false, money.band).',
     input: z.object({ range: rangeSchema }),
     output: z.object({
       metrics: kpiOutput.metrics,
@@ -387,18 +389,20 @@ export const analyticsTools = [
       }),
       platformUsers: z.array(itemSchema.meta({ opaque: "Item" })),
       platformActivation: z.array(itemSchema.meta({ opaque: "Item" })),
+      platformRule: z.string().describe("What the platform items count, for the unit"),
     }),
   }),
   defineTool({
     name: "explain_change",
     description:
-      "Why a metric moved against the prior period: confidence (Low means within the normal range, so no drivers), a summary that names tracking problems and holidays first, the drivers by platform and plan (rates split into mix and rate), and a walk from the prior period to now. Feeds DriverCards(why) and VarianceWalk(why.walk, why.comparisonLabel, why.format).",
+      "Why a metric moved against the comparison: confidence (Low means within the normal range, so no drivers), a summary that names tracking problems and holidays first, the drivers by platform and plan (rates split into mix and rate), and a walk from the comparison to now. Feeds DriverCards(why) and VarianceWalk(why.walk, why.comparisonLabel, why.format).",
     input: z.object({
       metric: z.enum(["wau", "dau", "signups", "activation", "stickiness"]).default("wau"),
       range: rangeSchema,
       platform,
       plan,
       active,
+      compare,
     }),
     output: whySchema,
   }),
@@ -463,7 +467,10 @@ export const analyticsTools = [
     input: z.object({
       platform,
       weeks: z.number().int().min(4).max(12).default(8),
-      mode: z.enum(["exact", "unbounded"]).default("exact"),
+      mode: z
+        .enum(["exact", "unbounded", "bracket"])
+        .default("exact")
+        .describe("As get_retention_cohorts; pass the same mode as the cohorts"),
       unit: z.enum(["user", "workspace"]).default("user"),
     }),
     output: z.object({
@@ -490,7 +497,7 @@ export const analyticsTools = [
   defineTool({
     name: "get_feature_engagement",
     description:
-      "Per feature: breadth (percent of monthly active users), frequency (days per week), change in breadth, and the week-4 retention gap of early users. Feeds EngagementMatrix, FeatureValue, and FeatureAdoption directly.",
+      "Per feature over the period: breadth (percent of active users), frequency (days per week), change in breadth, and the week-4 retention gap of early users. Feeds EngagementMatrix, FeatureValue, and FeatureAdoption directly.",
     input: z.object({ range: rangeSchema, platform, plan }),
     output: z.object({ features: z.array(featureSchema) }),
   }),
@@ -633,7 +640,16 @@ export const analyticsTools = [
     name: "get_product_insights",
     description:
       "Notable changes detected across activation, retention, engagement, experiments, and accounts, most important first. Feeds InsightList directly.",
-    input: z.object({ range: rangeSchema, platform, plan }),
+    input: z.object({
+      range: rangeSchema,
+      platform,
+      plan,
+      compare,
+      excluding: z
+        .enum(["wau", "dau", "signups", "activation", "stickiness"])
+        .optional()
+        .describe("explain_change's metric beside it: leaves out that metric's period change"),
+    }),
     output: z.object({ insights: z.array(insightSchema) }),
   }),
 ];

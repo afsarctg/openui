@@ -10,11 +10,15 @@ import { useEffect } from "react";
  * would still be left with a large blank below its content, the row stacks:
  * every card takes the full width, so none is stretched over empty space.
  *
- * One balancer watches every `.kit-theme .c1-card-row` on the page. A stacked
- * row stays stacked until the window width changes, so the layout never flips
- * back and forth as heights settle.
+ * One balancer watches the page's kit roots (each outermost `.kit-theme`) and
+ * nothing else, so a host app's own DOM changes never reach it. A kit component
+ * mounting registers the roots; a root is let go once it leaves the document,
+ * and the balancer stops when none is left. A stacked row stays stacked until
+ * the window width changes, so the layout never flips back and forth as heights
+ * settle.
  */
 
+const ROOT = ".kit-theme";
 const ROW = ".kit-theme .c1-card-row";
 const STACKED = "kit-row--stacked";
 /** Blank height a card may keep below its content before its row stacks. */
@@ -22,17 +26,58 @@ const MAX_BLANK = 140;
 /** …and the share of the row height that blank may be. */
 const MAX_BLANK_SHARE = 0.25;
 
-let started = false;
-
-/** Starts the page's row balancer (once) when a kit component mounts. */
-export function useRowBalance() {
-  useEffect(startRowBalance, []);
+interface Balancer {
+  watch(root: Element): void;
+  /** Lets go of roots no longer in the document; stops when none is left. */
+  prune(): void;
+  roots(): Element[];
 }
 
-function startRowBalance() {
-  if (started || typeof window === "undefined" || typeof ResizeObserver === "undefined") return;
-  started = true;
+let balancer: Balancer | null = null;
 
+/**
+ * Watches the page's kit roots while a kit component is mounted. Components
+ * show Pending only until their data arrives, so a root stays watched after
+ * they unmount, for as long as it is in the document: that is when its rows
+ * fill in and need balancing.
+ */
+export function useRowBalance() {
+  useEffect(() => {
+    watchKitRoots();
+    // Unmounting with its dashboard: the DOM is gone by now, so let it go.
+    return releaseDetachedRoots;
+  }, []);
+}
+
+/** Registers every outermost `.kit-theme` in the document with the balancer. */
+export function watchKitRoots() {
+  if (
+    typeof window === "undefined" ||
+    typeof ResizeObserver === "undefined" ||
+    typeof MutationObserver === "undefined"
+  ) {
+    return;
+  }
+  for (const root of document.querySelectorAll(ROOT)) {
+    // A nested root is already inside an outer one's subtree.
+    if (root.parentElement?.closest(ROOT)) continue;
+    (balancer ??= createBalancer()).watch(root);
+  }
+  balancer?.prune();
+}
+
+/** Lets go of kit roots that have left the document. */
+export function releaseDetachedRoots() {
+  balancer?.prune();
+}
+
+/** The roots the balancer is watching (for tests). */
+export function watchedKitRoots(): Element[] {
+  return balancer?.roots() ?? [];
+}
+
+function createBalancer(): Balancer {
+  const roots = new Map<Element, MutationObserver>();
   const observed = new WeakSet<Element>();
   const dirty = new Set<Element>();
   let frame = 0;
@@ -40,9 +85,11 @@ function startRowBalance() {
 
   const flush = () => {
     frame = 0;
+    prune();
+    if (!roots.size) return;
     if (scanQueued) {
       scanQueued = false;
-      scan();
+      for (const root of roots.keys()) scan(root);
     }
     for (const row of dirty) if (row.isConnected) balance(row);
     dirty.clear();
@@ -50,6 +97,7 @@ function startRowBalance() {
   const schedule = () => {
     if (!frame) frame = requestAnimationFrame(flush);
   };
+  // Also sees a root leave the document: its size drops to zero.
   const resize = new ResizeObserver((entries) => {
     for (const entry of entries) {
       const row = entry.target.closest(ROW);
@@ -60,8 +108,8 @@ function startRowBalance() {
 
   // Watch each card and each block of its body: a short card keeps the row's
   // height when its content grows, so only its blocks report the change.
-  function scan() {
-    for (const row of document.querySelectorAll(ROW)) {
+  function scan(root: Element) {
+    for (const row of root.querySelectorAll(ROW)) {
       for (const card of cardsOf(row)) {
         for (const el of [card, ...bodyOf(card).children]) {
           if (observed.has(el)) continue;
@@ -73,24 +121,53 @@ function startRowBalance() {
     }
   }
 
-  new MutationObserver(() => {
-    scanQueued = true;
-    schedule();
-  }).observe(document.body, { childList: true, subtree: true });
-
   let width = window.innerWidth;
-  window.addEventListener("resize", () => {
+  const onWindowResize = () => {
     if (window.innerWidth === width) return;
     width = window.innerWidth;
-    for (const row of document.querySelectorAll(`${ROW}.${STACKED}`)) {
-      row.classList.remove(STACKED);
-      dirty.add(row);
+    for (const root of roots.keys()) {
+      for (const row of root.querySelectorAll(`${ROW}.${STACKED}`)) {
+        row.classList.remove(STACKED);
+        dirty.add(row);
+      }
     }
     schedule();
-  });
+  };
+  window.addEventListener("resize", onWindowResize);
 
-  scan();
-  schedule();
+  function prune() {
+    for (const [root, mutations] of roots) {
+      if (root.isConnected) continue;
+      mutations.disconnect();
+      resize.unobserve(root);
+      roots.delete(root);
+    }
+    if (roots.size || balancer !== self) return;
+    resize.disconnect();
+    window.removeEventListener("resize", onWindowResize);
+    if (frame) cancelAnimationFrame(frame);
+    frame = 0;
+    dirty.clear();
+    balancer = null;
+  }
+
+  const self: Balancer = {
+    watch(root) {
+      if (roots.has(root)) return;
+      const mutations = new MutationObserver(() => {
+        scanQueued = true;
+        schedule();
+      });
+      mutations.observe(root, { childList: true, subtree: true });
+      roots.set(root, mutations);
+      resize.observe(root);
+      scan(root);
+      schedule();
+    },
+    prune,
+    roots: () => [...roots.keys()],
+  };
+  return self;
 }
 
 function cardsOf(row: Element): HTMLElement[] {
