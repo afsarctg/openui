@@ -30,37 +30,4 @@ export function isRuntimeTelemetryEnabled(env?: TelemetryEnvironment): boolean {
   return isTruthyEnv(env?.["OPENUI_RUNTIME_TELEMETRY_ENABLED"]) && !isTelemetryDisabled(env);
 }
 
-export function normalizeProjectIdentity(rawValue: string): string {
-  const value = rawValue.trim();
-  if (!value) return "";
-
-  try {
-    const url = new URL(value);
-    const repositoryPath = normalizeRepositoryPath(decodeURIComponent(url.pathname));
-    if (url.protocol === "file:") return `file:${repositoryPath}`;
-    if (url.host) return joinHostAndPath(url.host, repositoryPath);
-  } catch {
-    // SCP-style Git origins and local paths are handled below.
-  }
-
-  if (/^[A-Za-z]:[\\/]/.test(value)) return normalizeRepositoryPath(value);
-
-  const scpMatch = /^(?:[^@/\s]+@)?([^:/\s]+):(.+)$/.exec(value);
-  if (scpMatch) return joinHostAndPath(scpMatch[1]!, scpMatch[2]!);
-
-  return normalizeRepositoryPath(value);
-}
-
-function joinHostAndPath(host: string, repositoryPath: string): string {
-  const normalizedHost = host.trim().toLowerCase();
-  const normalizedPath = normalizeRepositoryPath(repositoryPath);
-  return normalizedPath ? `${normalizedHost}/${normalizedPath}` : normalizedHost;
-}
-
-function normalizeRepositoryPath(repositoryPath: string): string {
-  return repositoryPath
-    .trim()
-    .replace(/\\/g, "/")
-    .replace(/^\/+|\/+$/g, "")
-    .replace(/\.git$/i, "");
-}
+export { normalizeProjectIdentity } from "../../../../shared/project-identity.cjs";

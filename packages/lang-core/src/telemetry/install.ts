@@ -14,12 +14,17 @@
  * proxy and PostHog can observe the source IP as transport metadata; the script does
  * not read it or add it to the payload.
  */
-import { id as ciInfoId, isCI as ciInfoIsCI } from "ci-info";
-import { execFileSync } from "node:child_process";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, type WriteFileOptions } from "node:fs";
-import { homedir, release } from "node:os";
-import path from "node:path";
+import { createHash } from "node:crypto";
+import { release } from "node:os";
+import {
+  createTelemetryStateIO,
+  detectPackageManager,
+  loadTelemetryState,
+  showTelemetryNotice,
+  type PackageManagerName,
+  type ProjectIdSource,
+  type TelemetryStateIO,
+} from "../../../../shared/telemetry-state.cjs";
 import {
   getPostHogConfig,
   isTelemetryDisabled,
@@ -29,12 +34,10 @@ import {
   TELEMETRY_SCHEMA_VERSION,
 } from "./shared";
 
-export { isTelemetryDisabled, isTruthyEnv, normalizeProjectIdentity };
+export { detectPackageManager, isTelemetryDisabled, isTruthyEnv, normalizeProjectIdentity };
+export type { PackageManagerName, ProjectIdSource };
 
 export const INSTALL_EVENT = "openui_lang_core_installed";
-
-export type ProjectIdSource = "git_origin" | "repository_url" | "install_root";
-export type PackageManagerName = "npm" | "pnpm" | "yarn" | "bun" | "unknown";
 
 export interface InstallTelemetryProperties extends Record<string, unknown> {
   telemetry_schema_version: number;
@@ -58,21 +61,11 @@ export interface InstallTelemetryPayload {
   properties: InstallTelemetryProperties;
 }
 
-export interface InstallTelemetryIO {
-  cwd(): string;
-  homedir(): string;
-  readFile(file: string): string;
-  writeFile(file: string, contents: string, options?: WriteFileOptions): void;
-  mkdir(directory: string): void;
-  getGitOrigin(projectRoot: string): string | undefined;
+export interface InstallTelemetryIO extends TelemetryStateIO {
   platform: string;
   architecture: string;
   release(): string;
-  randomUUID(): string;
-  randomHex(bytes: number): string;
-  isDocker(): boolean;
   stdout(message: string): void;
-  stderr(message: string): void;
 }
 
 export type InstallTelemetrySender = (
@@ -92,17 +85,6 @@ export type RunInstallTelemetryResult =
   | { status: "sent"; payload: InstallTelemetryPayload }
   | { status: "failed"; payload?: InstallTelemetryPayload };
 
-interface StoredTelemetryState extends Record<string, unknown> {
-  distinctId: string;
-  projectSalt: string;
-  langCorePostinstallNoticeShown?: boolean;
-}
-
-interface ProjectIdentity {
-  value: string;
-  source: ProjectIdSource;
-}
-
 const INSTALL_NOTICE =
   "\n◆ OpenUI Lang Core sends pseudonymous installation telemetry to PostHog.\n" +
   "  It includes a salted project ID, OpenUI/Node/OS/package-manager metadata, and the network IP observed by PostHog.\n" +
@@ -111,19 +93,6 @@ const INSTALL_NOTICE =
 
 export function hashProjectIdentity(salt: string, projectIdentity: string): string {
   return createHash("sha256").update(salt).update("\0").update(projectIdentity).digest("hex");
-}
-
-export function detectPackageManager(env: NodeJS.ProcessEnv): {
-  name: PackageManagerName;
-  version?: string;
-} {
-  const userAgent = env["npm_config_user_agent"]?.trim() ?? "";
-  const match = userAgent.match(/^(npm|pnpm|yarn|bun)\/([^\s]+)/i);
-  if (!match) return { name: "unknown" };
-
-  const name = match[1]!.toLowerCase() as Exclude<PackageManagerName, "unknown">;
-  const version = match[2]!.slice(0, 64);
-  return version ? { name, version } : { name };
 }
 
 export async function runInstallTelemetry(
@@ -135,10 +104,10 @@ export async function runInstallTelemetry(
   let payload: InstallTelemetryPayload | undefined;
   try {
     const io = createInstallTelemetryIO(options.io);
-    const stateFile = getTelemetryStateFile(env, io);
-    const state = loadOrCreateState(stateFile, io);
-    const projectRoot = path.resolve(env["INIT_CWD"] || io.cwd());
-    const projectIdentity = resolveProjectIdentity(projectRoot, env, io);
+    const context = loadTelemetryState({ env, io });
+    if (!context) return { status: "failed" };
+    const { state, projectIdentity, ci, isDocker } = context;
+    if (!state.projectSalt) return { status: "failed" };
     const packageManager = detectPackageManager(env);
 
     payload = {
@@ -156,17 +125,13 @@ export async function runInstallTelemetry(
         system_architecture: io.architecture,
         package_manager: packageManager.name,
         ...(packageManager.version ? { package_manager_version: packageManager.version } : {}),
-        ci: ciInfoIsCI,
-        ...(ciInfoId ? { ci_name: ciInfoId } : {}),
-        is_docker: io.isDocker(),
+        ci: ci.isCI,
+        ...(ci.id ? { ci_name: ci.id } : {}),
+        is_docker: isDocker,
       },
     };
 
-    if (!state.langCorePostinstallNoticeShown) {
-      io.stderr(INSTALL_NOTICE);
-      state.langCorePostinstallNoticeShown = true;
-    }
-    persistState(stateFile, state, io);
+    showTelemetryNotice(context, "postinstall", INSTALL_NOTICE, io);
 
     if (isTruthyEnv(env["OPENUI_TELEMETRY_DEBUG"])) {
       io.stdout(`[OpenUI telemetry debug]\n${JSON.stringify(payload, null, 2)}\n`);
@@ -182,109 +147,13 @@ export async function runInstallTelemetry(
 
 function createInstallTelemetryIO(overrides: Partial<InstallTelemetryIO> = {}): InstallTelemetryIO {
   return {
-    cwd: () => process.cwd(),
-    homedir,
-    readFile: (file) => readFileSync(file, "utf8"),
-    writeFile: (file, contents, options) => writeFileSync(file, contents, options),
-    mkdir: (directory) => mkdirSync(directory, { recursive: true, mode: 0o700 }),
-    getGitOrigin: defaultGetGitOrigin,
+    ...createTelemetryStateIO(overrides),
     platform: process.platform,
     architecture: process.arch,
     release,
-    randomUUID,
-    randomHex: (bytes) => randomBytes(bytes).toString("hex"),
-    isDocker: defaultIsDocker,
     stdout: (message) => process.stdout.write(message),
-    stderr: (message) => process.stderr.write(message),
     ...overrides,
   };
-}
-
-function getTelemetryStateFile(env: NodeJS.ProcessEnv, io: InstallTelemetryIO): string {
-  const configRoot = env["XDG_CONFIG_HOME"] || path.join(io.homedir(), ".config");
-  return path.join(configRoot, "openui", "telemetry.json");
-}
-
-function loadOrCreateState(stateFile: string, io: InstallTelemetryIO): StoredTelemetryState {
-  let stored: Record<string, unknown> = {};
-  try {
-    const parsed = JSON.parse(io.readFile(stateFile)) as unknown;
-    if (isRecord(parsed)) stored = parsed;
-  } catch {
-    // Missing or corrupt state is replaced with a new best-effort state.
-  }
-
-  return {
-    ...stored,
-    distinctId:
-      typeof stored["distinctId"] === "string" && stored["distinctId"]
-        ? stored["distinctId"]
-        : io.randomUUID(),
-    projectSalt:
-      typeof stored["projectSalt"] === "string" && stored["projectSalt"]
-        ? stored["projectSalt"]
-        : io.randomHex(16),
-    langCorePostinstallNoticeShown: stored["langCorePostinstallNoticeShown"] === true,
-  };
-}
-
-function persistState(
-  stateFile: string,
-  state: StoredTelemetryState,
-  io: InstallTelemetryIO,
-): void {
-  try {
-    io.mkdir(path.dirname(stateFile));
-    io.writeFile(stateFile, JSON.stringify(state), { mode: 0o600 });
-  } catch {
-    // Read-only or ephemeral environments use the in-memory state for this run.
-  }
-}
-
-function resolveProjectIdentity(
-  projectRoot: string,
-  env: NodeJS.ProcessEnv,
-  io: InstallTelemetryIO,
-): ProjectIdentity {
-  const gitOrigin = io.getGitOrigin(projectRoot)?.trim();
-  if (gitOrigin) {
-    return { value: normalizeProjectIdentity(gitOrigin), source: "git_origin" };
-  }
-
-  const repositoryUrl = env["REPOSITORY_URL"]?.trim();
-  if (repositoryUrl) {
-    return {
-      value: normalizeProjectIdentity(repositoryUrl),
-      source: "repository_url",
-    };
-  }
-
-  return { value: projectRoot, source: "install_root" };
-}
-
-function defaultGetGitOrigin(projectRoot: string): string | undefined {
-  try {
-    return execFileSync("git", ["-C", projectRoot, "config", "--get", "remote.origin.url"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-      timeout: 1000,
-    }).trim();
-  } catch {
-    return undefined;
-  }
-}
-
-function defaultIsDocker(): boolean {
-  if (existsSync("/.dockerenv")) return true;
-  try {
-    return /docker|containerd|kubepods/i.test(readFileSync("/proc/self/cgroup", "utf8"));
-  } catch {
-    return false;
-  }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 async function sendToPostHog(

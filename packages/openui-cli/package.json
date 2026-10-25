@@ -10,7 +10,7 @@
     "README.md"
   ],
   "scripts": {
-    "build:cli": "tsc -p .",
+    "build:cli": "tsc -p . && node ../../scripts/copy-telemetry-state.mjs",
     "build": "pnpm run build:cli",
     "build:exec": "node dist/index.js",
     "lint:check": "eslint ./src",
@@ -52,6 +52,7 @@
     "@inquirer/core": "^11.1.5",
     "@inquirer/prompts": "^8.3.0",
     "@vercel/detect-agent": "1.2.6",
+    "ci-info": "^4.4.0",
     "commander": "^14.0.3",
     "cross-spawn": "^7.0.6",
     "dotenv": "^17.2.2",
@@ -60,5 +61,8 @@
     "open": "^10.1.0",
     "openid-client": "^6.1.7",
     "posthog-node": "^5.35.6"
+  },
+  "imports": {
+    "#openui-telemetry-state": "./dist/telemetry-state.cjs"
   }
 }
