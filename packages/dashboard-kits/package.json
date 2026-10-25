@@ -102,9 +102,9 @@
     "d3-shape": "^3.2.0"
   },
   "peerDependencies": {
-    "@openuidev/lang-core": ">=0.3.0 <0.5.0",
-    "@openuidev/react-lang": ">=0.3.0 <0.5.0",
-    "@openuidev/react-ui": ">=0.17.0 <0.18.0",
+    "@openuidev/lang-core": ">=0.3.0 <2.0.0",
+    "@openuidev/react-lang": ">=0.3.0 <2.0.0",
+    "@openuidev/react-ui": ">=0.17.0 <0.19.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "zod": "catalog:"
