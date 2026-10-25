@@ -12,7 +12,7 @@
     "rootDir": "./src",
     "types": ["node"],
     "paths": {
-      "#openui-telemetry-state": ["../../shared/telemetry-state.d.cts"]
+      "#openui-telemetry-state": ["../../shared/telemetry/telemetry-state.d.cts"]
     }
   }
 }

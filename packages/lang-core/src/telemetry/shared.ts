@@ -30,4 +30,4 @@ export function isRuntimeTelemetryEnabled(env?: TelemetryEnvironment): boolean {
   return isTruthyEnv(env?.["OPENUI_RUNTIME_TELEMETRY_ENABLED"]) && !isTelemetryDisabled(env);
 }
 
-export { normalizeProjectIdentity } from "../../../../shared/project-identity.cjs";
+export { normalizeProjectIdentity } from "../../../../shared/telemetry/project-identity.cjs";

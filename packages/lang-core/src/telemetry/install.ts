@@ -24,7 +24,7 @@ import {
   type PackageManagerName,
   type ProjectIdSource,
   type TelemetryStateIO,
-} from "../../../../shared/telemetry-state.cjs";
+} from "../../../../shared/telemetry/telemetry-state.cjs";
 import {
   getPostHogConfig,
   isTelemetryDisabled,
