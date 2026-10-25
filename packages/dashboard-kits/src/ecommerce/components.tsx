@@ -10,6 +10,7 @@ import { Sparkline } from "../components/Charts/Sparkline";
 import { SERIES_COLORS as SLOTS } from "../components/Charts/utils/constants";
 import { DeltaPill } from "../components/DeltaPill";
 import { PaceCell } from "../components/PaceCell";
+import { ScrollRegion } from "../components/ScrollRegion";
 import {
   changeTone,
   formatChange,
@@ -247,7 +248,7 @@ export const AdBudgetPacing = defineComponent({
         />
       );
     return (
-      <div className="kit-scroll">
+      <ScrollRegion label="Ad budget pacing table">
         <table className="kit-table kit-commits">
           <thead>
             <tr>
@@ -300,7 +301,7 @@ export const AdBudgetPacing = defineComponent({
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
     );
   },
 });
@@ -327,14 +328,16 @@ export const ChannelPerformance = defineComponent({
     const paidSpend = paid.reduce((a, c) => a + c.spend, 0);
     const paidRevenue = paid.reduce((a, c) => a + c.revenue, 0);
     return (
-      <div className="kit-scroll">
+      <ScrollRegion label="Channel performance table">
         <table className="kit-table">
           <thead>
             <tr>
               <th>Channel</th>
               <th className="kit-num">Spend</th>
               <th className="kit-num">Revenue</th>
-              <th aria-label="Revenue trend" />
+              <th>
+                <span className="kit-sr">Revenue trend</span>
+              </th>
               <th>ROAS{target ? ` · target ${target.toFixed(1)}x` : ""}</th>
               <th className="kit-num">CPA</th>
               <th className="kit-num">New customers</th>
@@ -405,7 +408,7 @@ export const ChannelPerformance = defineComponent({
             </tr>
           </tfoot>
         </table>
-      </div>
+      </ScrollRegion>
     );
   },
 });
@@ -511,7 +514,7 @@ export const ProductPerformance = defineComponent({
     if (products.length === 0) return <Pending kind="table" rows={8} />;
     const views = products.some((p) => p.views != null);
     return (
-      <div className="kit-scroll">
+      <ScrollRegion label="Product performance table">
         <table className="kit-table">
           <thead>
             <tr>
@@ -581,7 +584,7 @@ export const ProductPerformance = defineComponent({
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
     );
   },
 });
@@ -680,7 +683,7 @@ export const InventoryHealth = defineComponent({
     const at = (days: number) => `${(Math.min(days, COVER_MAX) / COVER_MAX) * 100}%`;
     return (
       <div className="kit-stockhealth">
-        <div className="kit-scroll">
+        <ScrollRegion label="Inventory health table">
           <table className="kit-table kit-commits">
             <thead>
               <tr>
@@ -728,7 +731,7 @@ export const InventoryHealth = defineComponent({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       </div>
     );
   },
@@ -757,7 +760,7 @@ export const ChannelProfit = defineComponent({
     if (rows.length === 0) return <Pending kind="table" rows={3} />;
     const top = Math.max(0.01, ...rows.map((r) => Math.max(r.margin, r.marginBefore)));
     return (
-      <div className="kit-scroll">
+      <ScrollRegion label="Channel profit table">
         <table className="kit-table kit-commits">
           <thead>
             <tr>
@@ -812,7 +815,7 @@ export const ChannelProfit = defineComponent({
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
     );
   },
 });
@@ -838,7 +841,7 @@ export const ExchangeMatrix = defineComponent({
           went to a larger size
           {up / total > 0.55 ? ": it runs small." : "."}
         </p>
-        <div className="kit-exchange__scroll">
+        <ScrollRegion className="kit-exchange__scroll" label={`${m.category} exchanges by size`}>
           <table className="kit-exchange__table">
             <caption className="kit-visually-hidden">
               {m.category} exchanges by size ordered and size swapped to
@@ -868,10 +871,10 @@ export const ExchangeMatrix = defineComponent({
                           : "kit-exchange__cell"
                       }
                       style={{
+                        // Capped at 72% so the ink count keeps 4.5:1 in both modes.
                         background: count
-                          ? `color-mix(in srgb, var(--kit-s1) ${Math.round(8 + (count / max) * 72)}%, var(--kit-card))`
+                          ? `color-mix(in srgb, var(--kit-s1) ${Math.round(8 + (count / max) * 64)}%, var(--kit-card))`
                           : undefined,
-                        color: count / max > 0.55 ? "var(--kit-on-accent, #fff)" : undefined,
                       }}
                     >
                       {count || ""}
@@ -881,7 +884,7 @@ export const ExchangeMatrix = defineComponent({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       </div>
     );
   },
@@ -1018,7 +1021,7 @@ export const CreativeLeaderboard = defineComponent({
         </span>
       );
     return (
-      <div className="kit-scroll">
+      <ScrollRegion label="Ad creatives table">
         <table className="kit-table kit-creatives">
           <thead>
             <tr>
@@ -1070,7 +1073,7 @@ export const CreativeLeaderboard = defineComponent({
               ))}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
     );
   },
 });

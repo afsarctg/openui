@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { packWaterfall, unpackWaterfall, varianceTone, waterfallSpans } from "./waterfallGeometry";
+import {
+  packWaterfall,
+  rowLabelMargin,
+  spacedTickLabels,
+  unpackWaterfall,
+  varianceTone,
+  waterfallSpans,
+} from "./waterfallGeometry";
 
 const BRIDGE = [
   { value: 100, kind: "base" as const },
@@ -54,5 +61,33 @@ describe("varianceTone", () => {
     expect(varianceTone("subtract", 110, 100)).toBe("bad");
     expect(varianceTone("total", 110, 100)).toBe("good");
     expect(varianceTone("total", 100, undefined)).toBe("neutral");
+  });
+});
+
+describe("spacedTickLabels", () => {
+  it("keeps every label when they fit", () => {
+    expect(spacedTickLabels([0, 100, 200], ["$0", "$500K", "$1M"])).toEqual([true, true, true]);
+  });
+
+  it("drops a label that would collide with the one before it", () => {
+    // Five 5-character labels 30px apart on a phone-width axis: every other one fits.
+    const keep = spacedTickLabels(
+      [130, 160, 190, 220, 250],
+      ["$230K", "$240K", "$250K", "$260K", "$270K"],
+    );
+    expect(keep).toEqual([true, false, true, false, true]);
+  });
+});
+
+describe("rowLabelMargin", () => {
+  it("keeps the usual 40% (up to 150px) for short names", () => {
+    expect(rowLabelMargin(["Plan", "Fees"], 305)).toBe(122);
+    expect(rowLabelMargin(["Plan", "Fees"], 500)).toBe(150);
+  });
+
+  it("widens for a long name, up to half the width", () => {
+    const m = rowLabelMargin(["Profit before marketing"], 305);
+    expect(m).toBeGreaterThan(122);
+    expect(m).toBeLessThanOrEqual(153);
   });
 });

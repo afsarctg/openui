@@ -30,3 +30,16 @@ jobs:
 
       - name: Run Packages CI
         run: pnpm --filter "./packages/**" --workspace-concurrency=1 run ci
+
+      # The dashboard kits render over the published thesys dashboard library,
+      # which isn't in the workspace, so their example app installs the package
+      # just built as a tarball and renders every gallery dashboard (`check`).
+      # A fresh pack never matches the committed tarball checksum, hence the
+      # unfrozen install.
+      - name: Check dashboard kits render
+        working-directory: examples/miscellaneous/dashboard-kits
+        run: |
+          mkdir -p .kits
+          pnpm --dir ../../../packages/dashboard-kits pack --pack-destination "$PWD/.kits"
+          pnpm install --ignore-workspace --no-frozen-lockfile
+          pnpm run check

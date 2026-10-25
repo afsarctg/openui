@@ -44,6 +44,14 @@
   overflow-x: auto;
   min-width: 0;
 }
+// Focusable while it overflows (ScrollRegion), so it shows where focus is.
+.kit-scroll:focus-visible,
+.kit-exchange__scroll:focus-visible,
+.kit-experiment__variants:focus-visible {
+  outline: 2px solid var(--kit-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 .kit-stack {
   display: inline-flex;
   flex-direction: column;
@@ -359,7 +367,7 @@
   border: 0;
   background: none;
   font: 600 12px var(--kit-font);
-  color: var(--kit-accent);
+  color: var(--kit-accent-ink);
   cursor: pointer;
 
   &:focus-visible {
@@ -370,6 +378,8 @@
 }
 .kit-actions__more {
   align-self: flex-start;
+  // A 24px target (WCAG 2.5.8), not just the line of text.
+  min-height: 24px;
   padding-left: 0;
 }
 .kit-actions__note {

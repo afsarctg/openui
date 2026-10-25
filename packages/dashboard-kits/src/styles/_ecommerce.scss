@@ -172,7 +172,7 @@
   height: 34px;
   border-radius: 9px;
   background: color-mix(in oklab, var(--kit-mono) 16%, var(--kit-card));
-  color: color-mix(in oklab, var(--kit-mono) 80%, var(--kit-ink));
+  color: color-mix(in oklab, var(--kit-mono) 50%, var(--kit-ink));
   font: 650 12.5px var(--kit-font);
   letter-spacing: 0.02em;
 }
@@ -204,6 +204,7 @@
 }
 
 .kit-leaderboard {
+  container-type: inline-size;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -214,7 +215,9 @@
 }
 .kit-leaderboard__item {
   display: grid;
-  grid-template-columns: auto 1fr;
+  // minmax(0, …): a plain 1fr won't shrink below its content, and the line
+  // ran past the card on a phone.
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 12px;
   align-items: center;
 }
@@ -232,20 +235,28 @@
 }
 .kit-leaderboard__name {
   flex: 0 1 auto;
-  min-width: 0;
+  min-width: 4em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 500;
   color: var(--kit-ink);
 }
-.kit-leaderboard__stock {
+.kit-leaderboard__stock,
+.kit-leaderboard__line > .kit-num {
   flex: none;
 }
 // A product's sales over the period, between its name and its revenue.
 .kit-leaderboard__spark {
   flex: 0 0 64px;
   margin-left: auto;
+}
+// Narrow lists drop the sparkline, so the name and revenue keep their room;
+// the meter and the change below still show where each product stands.
+@container (max-width: 380px) {
+  .kit-leaderboard__spark {
+    display: none;
+  }
 }
 
 .kit-alerts {

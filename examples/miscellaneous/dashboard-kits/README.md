@@ -76,6 +76,7 @@ The kits, their components, charts, prompts, tools, sample data, and styles are 
 | `src/app/styles.css`               | The app's chrome, on the kit theme tokens                                       |
 | `src/components/kit-workspace.tsx` | Kit picker and the Gallery, Generate, and Prompt views                          |
 | `scripts/check-kits.ts`            | Contract check for every kit                                                    |
+| `scripts/smoke-kits.tsx`           | Render smoke test: every gallery dashboard rendered in jsdom                    |
 
 ## Verify
 
@@ -83,7 +84,7 @@ The kits, their components, charts, prompts, tools, sample data, and styles are 
 npm run verify
 ```
 
-This runs the kit contract check, then a production build. The check parses every gallery dashboard against its kit's library, rejects Queries to unknown tools, calls every tool with every value of every enum argument and validates each result, and builds every prompt within its size budget (64,000 characters for each kit). Run the check alone with `npm run check`.
+This runs the kit contract check, the render smoke test, then a production build. The check parses every gallery dashboard against its kit's library, rejects Queries to unknown tools, calls every tool with every value of every enum argument and validates each result, and builds every prompt within its size budget (64,000 characters for each kit). The smoke test renders every gallery dashboard in jsdom with its kit's library, its Queries answered by the sample-data tools in-process, and fails on a component or Renderer error, a failed tool call, a React error log, a skeleton still showing once the Queries settle, or NaN in the markup. Run both with `npm run check`, or the smoke test alone with `npm run smoke`. CI (Build JS) packs the freshly built package into this app and runs `check`.
 
 ## Notes
 

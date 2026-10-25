@@ -1,7 +1,7 @@
 "use client";
 
 import { defineComponent } from "@openuidev/react-lang";
-import { Fragment, useState } from "react";
+import { Fragment, useId, useState } from "react";
 import { z } from "zod/v4";
 import { BurnDown } from "../components/Charts/BurnDown";
 import { ColumnChart as ColumnChartView } from "../components/Charts/ColumnChart";
@@ -12,6 +12,7 @@ import { SixTwelve } from "../components/Charts/SixTwelve";
 import { Sparkline } from "../components/Charts/Sparkline";
 import { MUTED_COLOR, SERIES_COLORS } from "../components/Charts/utils/constants";
 import { PaceCell } from "../components/PaceCell";
+import { ScrollRegion } from "../components/ScrollRegion";
 import { formatChange, formatCurrency, formatNumber, formatPoints } from "../core/format";
 import { passed } from "../core/schemas";
 import { Pending } from "../genui-lib/Pending";
@@ -337,7 +338,7 @@ export const EventTable = defineComponent({
     if (events.length === 0) return <Pending kind="table" rows={8} />;
     const max = Math.max(1, ...events.map((e) => e.count));
     return (
-      <div className="kit-scroll">
+      <ScrollRegion label="Events table">
         <table className="kit-table kit-events">
           <thead>
             <tr>
@@ -373,7 +374,7 @@ export const EventTable = defineComponent({
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
     );
   },
 });
@@ -633,7 +634,8 @@ export const ExperimentResults = defineComponent({
                   planned {e.split.planned}, so the lift below can't be trusted.
                 </p>
               )}
-              <div
+              <ScrollRegion
+                label={`${e.name} variants`}
                 className={`kit-experiment__variants${unreadable ? " kit-experiment__variants--muted" : ""}`}
               >
                 {e.variants.map((v) => {
@@ -702,7 +704,7 @@ export const ExperimentResults = defineComponent({
                     </div>
                   );
                 })}
-              </div>
+              </ScrollRegion>
               {e.guardrails.length > 0 && (
                 <ul className="kit-guardrails" aria-label="Guardrails">
                   {e.guardrails.map((g) => {
@@ -874,8 +876,9 @@ function HealthBreakdown({ account }: { account: Account }) {
 
 function AccountRows({ accounts }: { accounts: Account[] }) {
   const [open, setOpen] = useState<string | null>(null);
+  const detailId = `kit-account-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   return (
-    <div className="kit-scroll">
+    <ScrollRegion label="Workspace health table">
       <table className="kit-table kit-accounts">
         <thead>
           <tr>
@@ -888,25 +891,27 @@ function AccountRows({ accounts }: { accounts: Account[] }) {
           </tr>
         </thead>
         <tbody>
-          {accounts.map((a) => {
+          {accounts.map((a, i) => {
             const utilization = a.activeSeats / (a.seats || 1);
             const expanded = open === a.name;
             return (
               <Fragment key={a.name}>
+                {/* The whole row toggles on click; the name is the keyboard and
+                    screen-reader control (a table row can't carry aria-expanded),
+                    and its click bubbles to the row. */}
                 <tr
                   className={`kit-accounts__row${expanded ? " kit-accounts__row--open" : ""}`}
-                  tabIndex={0}
-                  aria-expanded={expanded}
                   onClick={() => setOpen(expanded ? null : a.name)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setOpen(expanded ? null : a.name);
-                    }
-                  }}
                 >
                   <td>
-                    <span className="kit-cell-title">{a.name}</span>
+                    <button
+                      type="button"
+                      className="kit-accounts__toggle kit-cell-title"
+                      aria-expanded={expanded}
+                      aria-controls={expanded ? `${detailId}-${i}` : undefined}
+                    >
+                      {a.name}
+                    </button>
                     <span className="kit-tag">{a.plan}</span>
                     <span className="kit-accounts__reason">{a.reason}</span>
                   </td>
@@ -942,7 +947,7 @@ function AccountRows({ accounts }: { accounts: Account[] }) {
                   </td>
                 </tr>
                 {expanded && (
-                  <tr className="kit-accounts__detail">
+                  <tr id={`${detailId}-${i}`} className="kit-accounts__detail">
                     <td colSpan={6}>
                       <HealthBreakdown account={a} />
                     </td>
@@ -953,7 +958,7 @@ function AccountRows({ accounts }: { accounts: Account[] }) {
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollRegion>
   );
 }
 
@@ -1042,7 +1047,7 @@ export const CommitPacing = defineComponent({
     const commits = (props.commits ?? []) as unknown as Commit[];
     if (commits.length === 0) return <Pending kind="table" rows={6} />;
     return (
-      <div className="kit-scroll">
+      <ScrollRegion label="Commit pacing table">
         <table className="kit-table kit-commits">
           <thead>
             <tr>
@@ -1092,7 +1097,7 @@ export const CommitPacing = defineComponent({
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
     );
   },
 });

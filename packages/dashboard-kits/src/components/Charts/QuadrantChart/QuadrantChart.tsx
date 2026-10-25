@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { scaleLinear, scaleSqrt } from "d3-scale";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type KeyboardEvent } from "react";
 import { useContainerSize } from "../hooks";
 import { ChartLegend, ChartTooltip } from "../shared";
 import { ChartEmpty } from "../shared/ChartEmpty";
@@ -14,7 +14,9 @@ import {
   placeLabels,
   QUADRANT_COLORS,
   QUADRANT_ORDER,
+  quadrantNameBoxes,
   quadrantOf,
+  yAxisLeft,
   type Bubble,
 } from "./quadrantGeometry";
 import type { Quadrant, QuadrantChartProps } from "./types";
@@ -62,11 +64,16 @@ function QuadrantChartImpl({
   const width = Math.max(size.width, MIN_WIDTH);
   const right = width - PAD.right;
   const bottom = height - PAD.bottom;
+  // Room on the left for the widest y tick label and the rotated axis title.
+  const left = yAxisLeft(
+    yAxis.ticks.map((t) => yAxis.format(t)),
+    PAD.left,
+  );
 
   const layout = useMemo(() => {
     const splitX = split?.x ?? median(points.map((p) => p.x));
     const splitY = split?.y ?? median(points.map((p) => p.y));
-    const x = scaleLinear().domain(xAxis.domain).range([PAD.left, right]).clamp(true);
+    const x = scaleLinear().domain(xAxis.domain).range([left, right]).clamp(true);
     const y = scaleLinear().domain(yAxis.domain).range([bottom, PAD.top]).clamp(true);
     const r = scaleSqrt()
       .domain([0, Math.max(...points.map((p) => p.size), 1)])
@@ -78,7 +85,13 @@ function QuadrantChartImpl({
       r: r(p.size),
       label: p.name,
     }));
-    const labels = placeLabels(bubbles, { left: PAD.left, right: width - 2 });
+    // Labels keep clear of the quadrant names and above the x tick labels.
+    const labels = placeLabels(
+      bubbles,
+      { left, right: width - 2, top: 0, bottom: bottom + 2 },
+      undefined,
+      quadrantNameBoxes(names, { left, right, top: PAD.top, bottom }),
+    );
     return {
       x,
       y,
@@ -91,12 +104,29 @@ function QuadrantChartImpl({
       anchors: labels.map((l) => l?.anchor),
       flat: packBubbles(bubbles, labels),
     };
-  }, [points, xAxis.domain, yAxis.domain, split?.x, split?.y, width, right, bottom]);
+  }, [points, xAxis.domain, yAxis.domain, split?.x, split?.y, names, width, left, right, bottom]);
 
   const { x, y, quadrants, bubbles } = layout;
   const hovered = hover != null ? points[hover] : undefined;
   const hoveredQuadrant = hover != null ? quadrants[hover]! : undefined;
   const ring = bubbles[Math.min(resting, bubbles.length - 1)]!;
+  // Arrow keys walk the points left to right, as the other kit charts do.
+  const byX = useMemo(
+    () => bubbles.map((_, i) => i).sort((a, b) => bubbles[a]!.cx - bubbles[b]!.cx),
+    [bubbles],
+  );
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Escape") setHover(null);
+    else if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+      const at = hover == null ? -1 : byX.indexOf(hover);
+      const next =
+        event.key === "ArrowRight"
+          ? Math.min(byX.length - 1, at + 1)
+          : Math.max(0, (at === -1 ? byX.length : at) - 1);
+      onHover(byX[next]!);
+    } else return;
+    event.preventDefault();
+  };
 
   return (
     <div className={clsx(P, className)}>
@@ -111,15 +141,14 @@ function QuadrantChartImpl({
         ref={frameRef}
         className={`${P}-frame`}
         style={{ height }}
+        tabIndex={0}
+        role="img"
+        aria-label={`${yAxis.title} against ${xAxis.title}, ${points.length} points. Use the arrow keys to read each point.`}
         onPointerLeave={() => setHover(null)}
+        onKeyDown={onKeyDown}
+        onBlur={() => setHover(null)}
       >
-        <svg
-          width={width}
-          height={height}
-          className={`${P}-svg`}
-          role="img"
-          aria-label={`${yAxis.title} against ${xAxis.title}`}
-        >
+        <svg width={width} height={height} className={`${P}-svg`}>
           <QuadrantAxes
             x={x}
             y={y}
@@ -128,7 +157,7 @@ function QuadrantChartImpl({
             splitX={layout.splitX}
             splitY={layout.splitY}
             quadrants={names}
-            left={PAD.left}
+            left={left}
             right={right}
             top={PAD.top}
             bottom={bottom}

@@ -27,7 +27,7 @@
 
   &--strong {
     background: color-mix(in srgb, var(--kit-accent) 14%, var(--kit-card));
-    color: var(--kit-accent);
+    color: var(--kit-accent-ink);
   }
   &--medium {
     background: color-mix(in srgb, var(--kit-warn) 18%, var(--kit-card));

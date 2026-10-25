@@ -201,8 +201,17 @@
   background: var(--kit-bad-bg);
   color: var(--kit-bad-ink);
 }
+// An unreadable test (sample ratio mismatch): the marks fade and the figures
+// drop to the quiet tone, but the text stays legible (fading it to 55% put it
+// near 2:1 against the card).
 .kit-experiment__variants--muted {
-  opacity: 0.55;
+  .kit-ci__track {
+    opacity: 0.45;
+  }
+  .kit-variant__metric,
+  .kit-ci__value {
+    color: var(--kit-ink-3);
+  }
 }
 .kit-guardrails {
   display: flex;
@@ -512,9 +521,24 @@
   &:hover td {
     background: var(--kit-sunk);
   }
-  &:focus-visible {
+  // The name button takes focus; the ring goes round the whole row.
+  &:has(.kit-accounts__toggle:focus-visible) {
     outline: 2px solid var(--kit-accent);
     outline-offset: -2px;
+  }
+}
+.kit-accounts__toggle {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: none;
   }
 }
 .kit-accounts__reason {

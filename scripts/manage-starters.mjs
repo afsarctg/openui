@@ -341,9 +341,29 @@ function refreshOverlayLockfile(template, overlayDir) {
   );
 }
 
+// An example that installs an unreleased workspace package from a local
+// tarball (`file:` dependency) can't install from the registry with a frozen
+// lockfile: the tarball is built in CI and its checksum changes with every
+// pack. Those examples are installed and checked in build-js.yml instead.
+function localDependencies(manifest) {
+  return dependencyFields.flatMap((field) =>
+    Object.entries(manifest[field] ?? {})
+      .filter(([, spec]) => typeof spec === "string" && spec.startsWith("file:"))
+      .map(([name]) => name),
+  );
+}
+
 function manageExamples() {
   const applications = findManifests(examplesRoot)
     .map(applicationFromManifest)
+    .filter((application) => {
+      const local = localDependencies(application.manifest);
+      if (local.length === 0) return true;
+      console.log(
+        `Skipping ${application.path}: installs ${local.join(", ")} from a local tarball (checked in build-js.yml).`,
+      );
+      return false;
+    })
     .sort((left, right) => left.path.localeCompare(right.path));
   const versions = command === "update" ? latestOpenUIVersions(applications.map(({ manifest }) => manifest)) : new Map();
 

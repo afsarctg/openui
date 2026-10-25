@@ -47,7 +47,9 @@
 .kit-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 16px;
+  // Row gap clears the buttons' 4px overhang above and below, so wrapped rows
+  // of legend buttons don't overlap.
+  gap: 8px 16px;
   font: var(--kit-label);
   color: var(--kit-ink-2);
 }
@@ -57,9 +59,12 @@
   gap: 7px;
 }
 /* Interactive legends: hover brings a series forward, a click pins it. */
+/* The padding makes a 24px target (WCAG 2.5.8); the negative margin keeps the
+   legend's line height, so the text sits where it did. */
 .kit-legend__button {
-  margin: -3px -6px;
-  padding: 3px 6px;
+  min-height: 24px;
+  margin: -4px -6px;
+  padding: 4px 6px;
   border: 0;
   border-radius: 6px;
   background: none;

@@ -47,6 +47,16 @@
   font-weight: 600;
   color: var(--kit-ink-3);
 }
+// A focusable label or tile that only opens a definition gets the kit's focus
+// ring, not the browser's thin default.
+.kit-def-host > [tabindex]:focus-visible {
+  outline: 2px solid var(--kit-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.kit-def-host > .kit-kpi[tabindex]:focus-visible {
+  outline-offset: -2px;
+}
 // The dotted underline that says a label has a definition.
 .kit-def-label {
   text-decoration: underline dotted color-mix(in srgb, var(--kit-ink-3) 70%, transparent);

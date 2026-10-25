@@ -105,7 +105,7 @@
   transform: scaleX(1);
 }
 .kit-kpi--tab[aria-pressed="true"] .kit-kpi__label {
-  color: var(--kit-accent);
+  color: var(--kit-accent-ink);
 }
 .kit-kpi--tab:focus-visible {
   outline: 2px solid var(--kit-accent);

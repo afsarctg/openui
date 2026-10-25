@@ -1,9 +1,14 @@
 import { formatCurrency, formatNumber } from "../../core/format";
 import type { CohortRow } from "../../core/schemas";
+import { ScrollRegion } from "../ScrollRegion";
 
-/** A single-hue sequential fill: the accent mixed into the card, so low values recede in both modes. */
+/**
+ * A single-hue sequential fill: the accent mixed into the card, so low values
+ * recede in both modes. It tops out at 90% so the cell's ink text keeps 4.5:1
+ * on the strongest cell in light mode (white text never does on this blue).
+ */
 export const heat = (intensity: number) =>
-  `color-mix(in oklab, var(--kit-accent) ${Math.round(6 + Math.max(0, Math.min(1, intensity)) * 90)}%, var(--kit-card))`;
+  `color-mix(in oklab, var(--kit-accent) ${Math.round(6 + Math.max(0, Math.min(1, intensity)) * 84)}%, var(--kit-card))`;
 
 export interface CohortGridProps {
   cohorts: CohortRow[];
@@ -46,7 +51,7 @@ export function CohortGrid({ cohorts, periodLabels, format, sizeLabel }: CohortG
   });
   return (
     <div className="kit-cohort-wrap">
-      <div className="kit-scroll">
+      <ScrollRegion label="Cohort table">
         <table className="kit-cohort">
           <thead>
             <tr>
@@ -72,7 +77,7 @@ export function CohortGrid({ cohorts, periodLabels, format, sizeLabel }: CohortG
                   return (
                     <td key={i} className="kit-cohort__cell-wrap">
                       <span
-                        className={`kit-cohort__cell${s > 0.58 ? " kit-cohort__cell--strong" : ""}${predicted ? " kit-cohort__cell--predicted" : ""}${partial ? " kit-cohort__cell--partial" : ""}${paidBack ? " kit-cohort__cell--payback" : ""}`}
+                        className={`kit-cohort__cell${predicted ? " kit-cohort__cell--predicted" : ""}${partial ? " kit-cohort__cell--partial" : ""}${paidBack ? " kit-cohort__cell--payback" : ""}`}
                         style={{ background: heat(s) }}
                         title={`${row.cohort}, ${labels[i] ?? i}: ${fmt(v)}${predicted ? " (forecast)" : ""}${partial ? " (so far; the period is not over)" : ""}${paidBack ? " · paid back what it cost to acquire" : ""}`}
                       >
@@ -96,7 +101,7 @@ export function CohortGrid({ cohorts, periodLabels, format, sizeLabel }: CohortG
             </tr>
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
       {(hasForecast || hasPartial || hasPayback) && (
         <div className="kit-cohort__keys" aria-hidden>
           {hasForecast && (

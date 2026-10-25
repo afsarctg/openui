@@ -10,6 +10,8 @@ import { findBandIndex } from "../utils/mouseUtils";
 import type { ProfitWaterfallProps, WaterfallStep } from "./types";
 import {
   packWaterfall,
+  rowLabelMargin,
+  spacedTickLabels,
   unpackWaterfall,
   varianceTone,
   waterfallSpans,
@@ -69,9 +71,16 @@ function ProfitWaterfallImpl({
     : fill
       ? Math.min(maxHeight, Math.max(columnHeight, size.height))
       : columnHeight;
-  // Rows: the step names take up to 40% of the width on the left.
+  // Rows: the step names take about 40% of the width on the left, up to half
+  // when a long name needs it, so none runs off the card.
   const margin = rows
-    ? { ...ROW_MARGIN, left: Math.min(150, Math.round(width * 0.4)) }
+    ? {
+        ...ROW_MARGIN,
+        left: rowLabelMargin(
+          steps.map((s) => s.label),
+          width,
+        ),
+      }
     : COLUMN_MARGIN;
   const hasComparison = steps.every((s) => s.comparison != null);
 
@@ -144,6 +153,13 @@ function ProfitWaterfallImpl({
   const tone = step ? varianceTone(step.kind, step.value, step.comparison) : "neutral";
   const ticks = value.ticks(rows ? 3 : 4);
   const tickLabels = formatTicks(ticks, format);
+  // Along the bottom in rows, crowded tick labels drop so none collide.
+  const showTick = rows
+    ? spacedTickLabels(
+        ticks.map((t) => value(t)),
+        tickLabels,
+      )
+    : ticks.map(() => true);
   const start = (band(shown) ?? 0) - pad;
 
   return (
@@ -209,9 +225,11 @@ function ProfitWaterfallImpl({
                     y2={height - margin.bottom}
                     className={tick === 0 ? `${P}-baseline` : `${P}-grid`}
                   />
-                  <text x={at} y={height - 4} textAnchor="middle" className={`${P}-tick`}>
-                    {tickLabels[k]}
-                  </text>
+                  {showTick[k] && (
+                    <text x={at} y={height - 4} textAnchor="middle" className={`${P}-tick`}>
+                      {tickLabels[k]}
+                    </text>
+                  )}
                 </g>
               ) : (
                 <g key={tick}>
